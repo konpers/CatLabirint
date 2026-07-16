@@ -4,31 +4,38 @@ import { findPath, distanceMap } from '../systems/Pathfinder.js';
 import {
   DOG_LIFETIME, DOG_SIZE, DOG_NOTICE_TILES, DOG_APPROACH_MAX, TILE,
 } from '../config/levels.js';
-import { DOG_RUN_FRAMES } from '../config/assets.js';
+import { DOGS, DOG_RUN_FRAMES } from '../config/dogs.js';
 
 const REPATH_MS = 500;   // как часто пересчитывать маршрут
 const ARRIVE_EPS = 5;    // считаем, что дошли до узла пути
 
-/** Анимации живут в глобальном менеджере — создаём один раз на всю игру. */
+/** Анимации живут в глобальном менеджере — создаём по одной на породу. */
 export function createDogAnims(scene) {
-  if (scene.anims.exists('dog_run')) return;
-  scene.anims.create({
-    key: 'dog_run',
-    frames: Array.from({ length: DOG_RUN_FRAMES }, (_, i) => ({ key: `dog_run_${i}` })),
-    frameRate: 12,
-    repeat: -1,
-  });
+  for (const d of DOGS) {
+    const key = `dog_${d.id}_run`;
+    if (scene.anims.exists(key)) continue;
+    scene.anims.create({
+      key,
+      frames: Array.from({ length: DOG_RUN_FRAMES }, (_, i) => ({ key: `dog_${d.id}_run_${i}` })),
+      frameRate: 12,
+      repeat: -1,
+    });
+  }
 }
 
 export class Dog extends Phaser.Physics.Arcade.Sprite {
-  /** @param {number} speed скорость в пикселях/сек — задаётся уровнем (см. levels.js) */
-  constructor(scene, x, y, maze, speed) {
-    super(scene, x, y, 'dog_run_0');
+  /**
+   * @param {number} speed скорость в пикселях/сек — задаётся уровнем (см. levels.js)
+   * @param {string} breed порода из dogs.js — определяет спрайты и анимацию
+   */
+  constructor(scene, x, y, maze, speed, breed) {
+    super(scene, x, y, `dog_${breed}_run_0`);
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
     this.maze = maze;
     this.speed = speed;
+    this.breed = breed;
     this.path = [];
     this.repathAt = 0;
     this.dead = false;
@@ -36,7 +43,7 @@ export class Dog extends Phaser.Physics.Arcade.Sprite {
     this.baseScale = DOG_SIZE / this.width;
     this.setScale(this.baseScale);
     this.setDepth(y);
-    this.play('dog_run');
+    this.play(this._anim);
 
     const r = this.width * 0.22;
     this.body.setCircle(r, this.width / 2 - r, this.height / 2 - r + this.height * 0.08);
@@ -49,6 +56,10 @@ export class Dog extends Phaser.Physics.Arcade.Sprite {
     this.spawnedAt = scene.time.now;
     this.noticed = false;    // заметила ли котика (тогда пошёл отсчёт 15 секунд)
     this.noticedAt = 0;
+  }
+
+  get _anim() {
+    return `dog_${this.breed}_run`;
   }
 
   /**
@@ -112,7 +123,7 @@ export class Dog extends Phaser.Physics.Arcade.Sprite {
     if (cat.isSafe && Math.hypot(this.x - cat.x, this.y - cat.y) < TILE * 1.3) {
       if (this.anims.isPlaying) {
         this.anims.stop();
-        this.setTexture('dog_sit');
+        this.setTexture(`dog_${this.breed}_wait`);
       }
       this.setVelocity(0, 0);
       this.setDepth(this.y);
@@ -120,8 +131,8 @@ export class Dog extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (!this.anims.isPlaying) {
-      this.setTexture('dog_run_0');
-      this.play('dog_run');
+      this.setTexture(`dog_${this.breed}_run_0`);
+      this.play(this._anim);
     }
 
     this._followPath();

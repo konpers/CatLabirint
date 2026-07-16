@@ -4,6 +4,7 @@ import { MazeGenerator, WALL, FLOOR, floorTiles, deadEndTiles, spreadPick } from
 import { Joystick } from '../systems/Joystick.js';
 import { Cat } from '../entities/Cat.js';
 import { Dog, pickSpawnTile, createDogAnims } from '../entities/Dog.js';
+import { randomDogBreed } from '../config/dogs.js';
 import { getLevel, LEVELS, TILE, DOG_APPROACH_BUDGET, dogSpeedFor } from '../config/levels.js';
 import { PALETTE, FONT } from '../config/assets.js';
 
@@ -281,7 +282,8 @@ export class GameScene extends Phaser.Scene {
     const catTile = this.maze.worldToTile(this.cat.x, this.cat.y);
     const t = pickSpawnTile(this.maze, catTile, DOG_SPAWN_MIN, this.dogReach);
     const p = this.maze.tileToWorld(t.x, t.y);
-    const dog = new Dog(this, p.x, p.y, this.maze, dogSpeedFor(this.cfg));
+    // Порода случайная — стая получается разношёрстной, а встречи разнообразнее
+    const dog = new Dog(this, p.x, p.y, this.maze, dogSpeedFor(this.cfg), randomDogBreed());
     this.dogs.add(dog);
     this.physics.add.collider(dog, this.walls);
   }

@@ -2,6 +2,8 @@
 
 import { PALETTE, FONT } from '../config/assets.js';
 
+const RUN_KEY = 'cat_maze_run';
+
 export class UIScene extends Phaser.Scene {
   constructor() {
     super({ key: 'UI', active: false });
@@ -10,8 +12,10 @@ export class UIScene extends Phaser.Scene {
   init(data) {
     this.levelNum = data.level || 1;
     this.hint = data.hint || '';
-    this.runHeld = false; // зажата ли кнопка бега (читает GameScene)
-    this.panel = null;    // открытое меню паузы
+    // Режим бега помним между уровнями и перезапусками: включил один раз —
+    // и не надо жать заново после каждой пойманной собаки.
+    this.runHeld = localStorage.getItem(RUN_KEY) === '1';
+    this.panel = null; // открытое меню паузы
   }
 
   create() {
@@ -73,7 +77,10 @@ export class UIScene extends Phaser.Scene {
 
   // --- Кнопка бега -------------------------------------------------------
   // Правый нижний угол — под большой палец правой руки (джойстик слева).
-  // Зажал — котик бежит, отпустил — идёт. На компьютере остаётся SHIFT.
+  //
+  // ПЕРЕКЛЮЧАТЕЛЬ, а не «держать»: одной рукой вести джойстик и одновременно
+  // удерживать кнопку неудобно (жалоба с теста). Нажал — режим бега включён и
+  // держится сам, нажал ещё раз — выключен. На компьютере остаётся SHIFT.
 
   _makeRunButton() {
     const { width: w, height: h } = this.scale;
@@ -91,21 +98,34 @@ export class UIScene extends Phaser.Scene {
     // рамки (не в центре!), поэтому центр зоны = (радиус, радиус).
     bg.setInteractive(new Phaser.Geom.Circle(44, 44, 58), Phaser.Geom.Circle.Contains);
 
-    const press = () => {
-      this.runHeld = true;
-      bg.setFillStyle(0xFFE07A, 0.75);
-      c.setScale(0.92);
-    };
-    const release = () => {
-      this.runHeld = false;
-      bg.setFillStyle(0xFFFFFF, 0.35);
-      c.setScale(1);
-    };
-    bg.on('pointerdown', press);
-    bg.on('pointerup', release);
-    bg.on('pointerout', release); // палец соскользнул — не «залипаем» в беге
+    this._runBg = bg;
+    this._runLabel = label;
+    bg.on('pointerdown', () => this._toggleRun());
 
     this.runBtn = c;
+    this._paintRun();
+  }
+
+  _toggleRun() {
+    this.runHeld = !this.runHeld;
+    localStorage.setItem(RUN_KEY, this.runHeld ? '1' : '0');
+    this._paintRun();
+    // короткий отклик на нажатие — видно, что кнопка сработала
+    this.tweens.add({ targets: this.runBtn, scale: 0.9, duration: 90, yoyo: true });
+  }
+
+  /** Вид кнопки должен ясно показывать РЕЖИМ: включён бег или нет. */
+  _paintRun() {
+    if (!this._runBg) return;
+    if (this.runHeld) {
+      this._runBg.setFillStyle(0xFFD65C, 0.85);
+      this._runBg.setStrokeStyle(4, 0xE0A83A, 1);
+      this._runLabel.setText('БЕГ ✓').setColor('#7A5A10');
+    } else {
+      this._runBg.setFillStyle(0xFFFFFF, 0.35);
+      this._runBg.setStrokeStyle(4, 0x5B4A6F, 0.35);
+      this._runLabel.setText('БЕГ').setColor('#5B4A6F');
+    }
   }
 
   // --- Меню паузы ----------------------------------------------------------

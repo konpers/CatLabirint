@@ -6,9 +6,9 @@
 // ============================================================
 
 import { CATS } from './cats.js';
+import { DOGS, DOG_RUN_FRAMES } from './dogs.js';
 
-export const SPRITE_SIZE = 64;   // размер, к которому приводятся SVG при загрузке
-export const DOG_RUN_FRAMES = 6; // кадров в цикле бега собаки
+export const SPRITE_SIZE = 64; // размер, к которому приводятся SVG при загрузке
 
 // Позы котика: walk — основная, sit/sleep — для анимаций простоя.
 export const CAT_POSES = ['walk', 'sit', 'sleep'];
@@ -19,12 +19,14 @@ export const IMAGES = [
     CAT_POSES.map((p) => ({ key: `cat_${c.id}_${p}`, path: `assets/sprites/cat_${c.id}_${p}.png` }))
   ),
 
-  // Собака: покадровый цикл бега + поза "сижу и жду"
-  ...Array.from({ length: DOG_RUN_FRAMES }, (_, i) => ({
-    key: `dog_run_${i}`,
-    path: `assets/sprites/dog_run_${i}.png`,
-  })),
-  { key: 'dog_sit', path: 'assets/sprites/dog_sit.png' },
+  // Собаки: у каждой породы цикл бега + поза ожидания. Породы — в dogs.js.
+  ...DOGS.flatMap((d) => [
+    ...Array.from({ length: DOG_RUN_FRAMES }, (_, i) => ({
+      key: `dog_${d.id}_run_${i}`,
+      path: `assets/sprites/dog_${d.id}_run_${i}.png`,
+    })),
+    { key: `dog_${d.id}_wait`, path: `assets/sprites/dog_${d.id}_wait.png` },
+  ]),
 
   { key: 'box',  path: 'assets/sprites/box.svg' },   // безопасная зона
   { key: 'exit', path: 'assets/sprites/exit.svg' },  // выход из лабиринта

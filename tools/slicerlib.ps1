@@ -16,9 +16,14 @@ public class Slicer {
     // отлив, поэтому нейтральность — надёжный признак фона.
     if (Math.Abs(r-g) > 8 || Math.Abs(g-b) > 8 || Math.Abs(r-b) > 8) return false;
     int v = r;
-    // Диапазон покрывает обе клетки (~60 и ~104) И плавные переходы между ними,
+    // Диапазон покрывает тёмную и светлую клетку И плавные переходы между ними,
     // иначе на границах клеток остаются серые квадратики.
-    return v >= 40 && v <= 128;
+    // Оттенки клеток НА РАЗНЫХ ЛИСТАХ отличаются: у Cat.png тёмная ~60,
+    // у dog_2.png ~38 — с узким диапазоном она оставалась чёрными пятнами.
+    // Чёрному Угольку это не грозит: его шерсть с синим отливом (38,42,53),
+    // а шашечка строго нейтральная. Тёмное пятно у глаза бультерьера нейтрально,
+    // но оно ВНУТРИ собаки — заливка от краёв до него не доходит.
+    return v >= 28 && v <= 135;
   }
 
   public static void FloodBackground() {
@@ -105,9 +110,30 @@ public class Slicer {
     return keep;
   }
 
+  // Тесная рамка САМОГО персонажа внутри области (после отсева соседей).
+  // Нужна потому, что рамка вырезки почти всегда с запасом: если масштабировать
+  // по ней, котик с пустыми полями окажется мельче остальных (так и вышло с
+  // Зефиром и Дымком).
+  // @returns int[]{x0, y0, x1, y1} в координатах ИСХОДНОЙ картинки
+  public static int[] ContentBox(int x0, int y0, int x1, int y1) {
+    int w = x1-x0+1, h = y1-y0+1;
+    var keep = LargestOnly(x0, y0, w, h);
+    int minx=w, miny=h, maxx=-1, maxy=-1;
+    for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
+      if (!keep[y*w+x]) continue;
+      if (x<minx) minx=x; if (x>maxx) maxx=x;
+      if (y<miny) miny=y; if (y>maxy) maxy=y;
+    }
+    if (maxx < 0) return new int[]{x0, y0, x1, y1}; // пусто — отдаём как есть
+    return new int[]{ x0+minx, y0+miny, x0+maxx, y0+maxy };
+  }
+
   // Вырезает область, убирает фон в прозрачность, вписывает в квадрат size x size.
   // flipX=true отражает по горизонтали (в игре персонаж смотрит вправо).
-  public static void Save(string path, int x0, int y0, int x1, int y1, int size, int pad, bool flipX) {
+  //
+  // scale > 0 — рисовать ИМЕННО в этом масштабе (общий для всех спрайтов набора,
+  // чтобы сохранить пропорции исходника). scale <= 0 — вписать по рамке.
+  public static void Save(string path, int x0, int y0, int x1, int y1, int size, int pad, bool flipX, float scale) {
     int w = x1-x0+1, h = y1-y0+1;
     var keep = LargestOnly(x0, y0, w, h);
     using (var crop = new Bitmap(w, h, PixelFormat.Format32bppArgb)) {
@@ -126,7 +152,7 @@ public class Slicer {
       if (flipX) crop.RotateFlip(RotateFlipType.RotateNoneFlipX);
 
       int box = size - pad*2;
-      float sc = Math.Min((float)box/w, (float)box/h);
+      float sc = scale > 0 ? scale : Math.Min((float)box/w, (float)box/h);
       int nw = Math.Max(1,(int)(w*sc)), nh = Math.Max(1,(int)(h*sc));
       using (var outb = new Bitmap(size, size, PixelFormat.Format32bppArgb))
       using (var g = Graphics.FromImage(outb)) {

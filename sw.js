@@ -3,7 +3,7 @@
 // ВАЖНО: поменял любой файл — подними версию в CACHE_NAME. Иначе у игрока
 // останется старая версия из кеша, и он будет уверять, что твоя правка не работает.
 
-const CACHE_NAME = 'cat-maze-v5';
+const CACHE_NAME = 'cat-maze-v6';
 
 const ASSETS = [
   './',
@@ -33,15 +33,18 @@ const ASSETS = [
   './assets/sfx/meow.mp3',
 ];
 
-// Котики: 4 окраски x 3 позы, и 6 кадров бега собаки + поза "сижу".
-// Собираем списком, чтобы не перечислять 19 строк руками.
+// Котики: 4 окраски x 3 позы. Собаки: 2 породы x (6 кадров бега + поза ожидания).
+// Собираем списком, чтобы не перечислять три десятка строк руками.
+// Добавил породу или скин — впиши сюда, иначе офлайн их не будет.
 for (const id of ['ugolek', 'zefir', 'persik', 'dymok']) {
   for (const pose of ['walk', 'sit', 'sleep']) {
     ASSETS.push(`./assets/sprites/cat_${id}_${pose}.png`);
   }
 }
-for (let i = 0; i < 6; i++) ASSETS.push(`./assets/sprites/dog_run_${i}.png`);
-ASSETS.push('./assets/sprites/dog_sit.png');
+for (const id of ['beagle', 'bull']) {
+  for (let i = 0; i < 6; i++) ASSETS.push(`./assets/sprites/dog_${id}_run_${i}.png`);
+  ASSETS.push(`./assets/sprites/dog_${id}_wait.png`);
+}
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
