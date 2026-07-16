@@ -31,7 +31,10 @@ const config = {
     default: 'arcade',
     arcade: { gravity: { y: 0 }, debug: false },
   },
-  render: { antialias: true, roundPixels: false },
+  // roundPixels: спрайты рисуются по целым пикселям. Без этого при дробном
+  // зуме камеры (~0.87) движущийся котик попадает «между пикселями» и
+  // размазывается — жалоба с теста на телефоне.
+  render: { antialias: true, roundPixels: true },
   scene: [BootScene, MenuScene, GameScene, UIScene],
 };
 

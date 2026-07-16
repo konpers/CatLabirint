@@ -84,7 +84,10 @@ export class Dog extends Phaser.Physics.Arcade.Sprite {
       }
       return;
     }
-    if (time - this.noticedAt >= DOG_LIFETIME) this.vanish();
+    // Погоня кончилась. Причина 'chase' говорит сцене увести ВСЮ стаю разом:
+    // иначе у каждой собаки свой таймер, и они исчезают/появляются по кругу —
+    // ребёнок вообще не получает передышки (жалоба с теста).
+    if (time - this.noticedAt >= DOG_LIFETIME) this.vanish('chase');
   }
 
   update(cat, time) {
@@ -146,21 +149,25 @@ export class Dog extends Phaser.Physics.Arcade.Sprite {
     else if (dx > 0.5) this.setFlipX(false);
   }
 
-  vanish() {
+  /** @param {string} reason 'chase' — истёк таймер погони (уводит всю стаю) */
+  vanish(reason = '') {
     if (this.dead) return;
     this.dead = true;
     this.setVelocity(0, 0);
     if (this.body) this.body.enable = false;
+
+    // Сигнал — СРАЗУ, не после анимации растворения. Иначе стая получает
+    // команду уходить на 400 мс позже, и собака, чей таймер истекает в эту
+    // щель, успевает исчезнуть «сама по себе» — уход перестаёт быть дружным.
+    this.scene.events.emit('dog-vanished', this, reason);
+
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
       scale: this.baseScale * 0.4,
       duration: 400,
       ease: 'Back.easeIn',
-      onComplete: () => {
-        this.scene.events.emit('dog-vanished', this);
-        this.destroy();
-      },
+      onComplete: () => this.destroy(),
     });
   }
 

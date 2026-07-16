@@ -254,8 +254,17 @@ export class GameScene extends Phaser.Scene {
     // поэтому обработчик надо снимать руками на shutdown. Иначе после десятка
     // перезапусков (а ребёнок на 5-м уровне столько и погибнет) тут копятся
     // десятки слушателей, и каждый вешает свой лишний таймер.
-    const onVanished = () => {
+    const onVanished = (dog, reason) => {
       if (this.finished) return;
+      // Истёк таймер погони у одной — уходит ВСЯ стая. С личными таймерами
+      // собаки исчезали и появлялись по кругу без единой передышки (тест с
+      // Лианой). Каждая уведённая собака сама назначит себе замену ниже,
+      // так что стая вернётся волной после respawnGap.
+      if (reason === 'chase') {
+        this.dogs.getChildren().forEach((d) => {
+          if (d !== dog && !d.dead) d.vanish();
+        });
+      }
       this.time.delayedCall(this.cfg.respawnGap, () => this._spawnDog());
     };
     this.events.on('dog-vanished', onVanished);
@@ -264,7 +273,10 @@ export class GameScene extends Phaser.Scene {
 
   _spawnDog() {
     if (this.finished || !this.scene.isActive()) return;
-    if (this.dogs.getLength() >= this.cfg.dogs) return;
+    // Считаем только живых: исчезающая собака ещё числится в группе, пока
+    // играет анимацию растворения, и блокировала бы спавн своей замены.
+    const alive = this.dogs.getChildren().filter((d) => !d.dead).length;
+    if (alive >= this.cfg.dogs) return;
 
     const catTile = this.maze.worldToTile(this.cat.x, this.cat.y);
     const t = pickSpawnTile(this.maze, catTile, DOG_SPAWN_MIN, this.dogReach);
@@ -328,6 +340,9 @@ export class GameScene extends Phaser.Scene {
     if (this.finished) return;
 
     const input = this.joystick.getVector();
+    // Экранная кнопка «БЕГ» (правый нижний угол HUD). На компьютере бег
+    // остаётся на SHIFT, на полном отклонении джойстика — тоже.
+    if (this.ui?.runHeld && input.force > 0) input.running = true;
     this.cat.update(input, delta);
 
     // В коробке или нет — проверяем каждый кадр: от этого зависит, ловит ли собака

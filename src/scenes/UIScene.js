@@ -1,7 +1,6 @@
 // HUD поверх игры. Отдельная сцена — чтобы не ездила вместе с камерой.
 
 import { PALETTE, FONT } from '../config/assets.js';
-import { DOG_LIFETIME } from '../config/levels.js';
 
 export class UIScene extends Phaser.Scene {
   constructor() {
@@ -11,6 +10,8 @@ export class UIScene extends Phaser.Scene {
   init(data) {
     this.levelNum = data.level || 1;
     this.hint = data.hint || '';
+    this.runHeld = false; // зажата ли кнопка бега (читает GameScene)
+    this.panel = null;    // открытое меню паузы
   }
 
   create() {
@@ -33,9 +34,20 @@ export class UIScene extends Phaser.Scene {
       .setScrollFactor(0);
     this.tweens.add({ targets: hint, alpha: 0, delay: 3200, duration: 700, onComplete: () => hint.destroy() });
 
-    // Таймер собаки
+    // Кнопка паузы — правый верхний угол
+    this.menuBtn = this.add
+      .text(w - 12, 8, '⏸', {
+        fontFamily: FONT, fontSize: '30px', color: '#FFFFFF',
+        stroke: '#5B4A6F', strokeThickness: 5, padding: { x: 8, y: 4 },
+      })
+      .setOrigin(1, 0)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+    this.menuBtn.on('pointerdown', () => this._openMenu());
+
+    // Таймер собаки — левее кнопки паузы
     this.dogLabel = this.add
-      .text(w - 14, 12, '', {
+      .text(w - 64, 12, '', {
         fontFamily: FONT, fontSize: '19px', color: '#FFFFFF', stroke: '#C4563E', strokeThickness: 4,
       })
       .setOrigin(1, 0)
@@ -50,6 +62,121 @@ export class UIScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setVisible(false);
+
+    this._makeRunButton();
+
+    // Экран телефона меняет размер (поворот, адресная строка) — HUD-кнопки
+    // должны переехать вслед за углами.
+    this.scale.on('resize', this._layout, this);
+    this.events.once('shutdown', () => this.scale.off('resize', this._layout, this));
+  }
+
+  // --- Кнопка бега -------------------------------------------------------
+  // Правый нижний угол — под большой палец правой руки (джойстик слева).
+  // Зажал — котик бежит, отпустил — идёт. На компьютере остаётся SHIFT.
+
+  _makeRunButton() {
+    const { width: w, height: h } = this.scale;
+    const c = this.add.container(w - 68, h - 92).setScrollFactor(0).setDepth(500);
+
+    const bg = this.add.circle(0, 0, 44, 0xFFFFFF, 0.35).setStrokeStyle(4, 0x5B4A6F, 0.35);
+    const icon = this.add.text(0, -2, '💨', { fontSize: '34px' }).setOrigin(0.5);
+    const label = this.add
+      .text(0, 26, 'БЕГ', { fontFamily: FONT, fontSize: '13px', color: '#5B4A6F' })
+      .setOrigin(0.5);
+    c.add([bg, icon, label]);
+
+    // Зона нажатия крупнее кружка — детский палец не обязан попадать точно.
+    // Координаты зоны — ЛОКАЛЬНЫЕ для кружка: его начало в левом верхнем углу
+    // рамки (не в центре!), поэтому центр зоны = (радиус, радиус).
+    bg.setInteractive(new Phaser.Geom.Circle(44, 44, 58), Phaser.Geom.Circle.Contains);
+
+    const press = () => {
+      this.runHeld = true;
+      bg.setFillStyle(0xFFE07A, 0.75);
+      c.setScale(0.92);
+    };
+    const release = () => {
+      this.runHeld = false;
+      bg.setFillStyle(0xFFFFFF, 0.35);
+      c.setScale(1);
+    };
+    bg.on('pointerdown', press);
+    bg.on('pointerup', release);
+    bg.on('pointerout', release); // палец соскользнул — не «залипаем» в беге
+
+    this.runBtn = c;
+  }
+
+  // --- Меню паузы ----------------------------------------------------------
+
+  _openMenu() {
+    if (this.panel) return;
+    const game = this.scene.get('Game');
+    if (game.finished) return; // во время «уровень пройден» меню не нужно
+    this.scene.pause('Game');
+
+    const { width: w, height: h } = this.scale;
+    const dim = this.add
+      .rectangle(w / 2, h / 2, w * 2, h * 2, 0x000000, 0.45)
+      .setInteractive(); // глушит клики по игре под панелью
+
+    const boxW = Math.min(300, w * 0.86);
+    const box = this.add.rectangle(w / 2, h / 2, boxW, 250, 0xFFF6EC).setStrokeStyle(4, PALETTE.ui, 0.35);
+    const title = this.add
+      .text(w / 2, h / 2 - 88, 'Пауза', { fontFamily: FONT, fontSize: '26px', color: '#5B4A6F' })
+      .setOrigin(0.5);
+
+    const items = [
+      this._menuItem(w / 2, h / 2 - 34, boxW - 40, 0x7ED9A0, 'Продолжить', () => this._closeMenu()),
+      this._menuItem(w / 2, h / 2 + 24, boxW - 40, 0xFFD65C, 'Начать заново', () => {
+        // Заново ТЕКУЩИЙ уровень (с новым лабиринтом — так устроен restart)
+        const { levelNum, skin } = game;
+        this._closeMenu();
+        game.scene.restart({ level: levelNum, skin });
+        this.scene.stop(); // Game.create поднимет свежий HUD сам
+      }),
+      this._menuItem(w / 2, h / 2 + 82, boxW - 40, 0xF2A8B4, 'В главное меню', () => {
+        this.scene.stop('Game');
+        this.scene.start('Menu'); // start останавливает UI и открывает меню
+      }),
+    ];
+
+    this.panel = this.add.container(0, 0, [dim, box, title, ...items.flat()])
+      .setScrollFactor(0)
+      .setDepth(2000);
+  }
+
+  _closeMenu() {
+    this.panel?.destroy();
+    this.panel = null;
+    this.scene.resume('Game');
+  }
+
+  _menuItem(x, y, width, color, label, onClick) {
+    const bg = this.add.rectangle(x, y, width, 46, color).setStrokeStyle(3, 0x5B4A6F, 0.25);
+    bg.setInteractive({ useHandCursor: true });
+    bg.on('pointerdown', onClick);
+    const t = this.add
+      .text(x, y, label, { fontFamily: FONT, fontSize: '19px', color: '#4A3D5C' })
+      .setOrigin(0.5);
+    return [bg, t];
+  }
+
+  // --- Раскладка при смене размера экрана ---------------------------------
+
+  _layout() {
+    const { width: w, height: h } = this.scale;
+    this.menuBtn?.setPosition(w - 12, 8);
+    this.dogLabel?.setPosition(w - 64, 12);
+    this.runBtn?.setPosition(w - 68, h - 92);
+    this.safeLabel?.setPosition(w / 2, 48);
+    // Открытую паузу проще перестроить, чем двигать по частям
+    if (this.panel) {
+      this.panel.destroy();
+      this.panel = null;
+      this._openMenu();
+    }
   }
 
   /**
