@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <!-- viewport-fit=cover + user-scalable=no: чтобы двойной тап не зумил страницу
+       посреди погони, и чтобы игра лезла под "чёлку" телефона -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#B8D8E8">
+  <meta name="description" content="Милая игра-лабиринт: помоги котику добраться до домика и спрячься от собак.">
+  <title>Котик в Лабиринте</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="game"></div>
+
+  <!-- Phaser лежит локально, а не на CDN: иначе игра не запустится без интернета,
+       а офлайн — одно из требований PWA -->
+  <script src="vendor/phaser.min.js"></script>
+  <script type="module" src="src/main.js"></script>
+
+  <script>
+    // Открыл index.html?nosw — Service Worker выключается и кеш чистится.
+    //
+    // Это спасательный круг для разработки: SW отдаёт файлы ИЗ КЕША, поэтому
+    // после правки кода или замены картинки браузер упрямо показывает старую
+    // версию, пока не поднимешь CACHE_NAME в sw.js. Меняешь ассеты — открывай
+    // с ?nosw, и увидишь изменения сразу.
+    const noSW = new URLSearchParams(location.search).has('nosw');
+
+    if (noSW && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+      if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k)));
+      console.warn('SW выключен через ?nosw — офлайн-режим сейчас не работает.');
+    }
+    // Service Worker живёт только на https/localhost. При открытии файла напрямую
+    // (file://) регистрация упала бы с ошибкой — поэтому проверяем протокол.
+    else if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW не зарегистрирован:', e));
+      });
+    }
+  </script>
+</body>
+</html>

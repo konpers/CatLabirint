@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Выход: уютный домик с рыбкой на вывеске. Цель уровня должна быть милой. -->
+  <ellipse cx="32" cy="58" rx="19" ry="4" fill="#000000" opacity="0.15"/>
+  <!-- корпус -->
+  <path d="M14 30 L50 30 L50 55 L14 55 Z" fill="#F7E3C4"/>
+  <!-- крыша -->
+  <path d="M32 8 L56 31 L8 31 Z" fill="#F2856D"/>
+  <path d="M32 12.5 L50.5 30 L13.5 30 Z" fill="#FF9E85"/>
+  <!-- окошко -->
+  <circle cx="32" cy="38" r="5.5" fill="#8FD8F2" stroke="#FFFFFF" stroke-width="2"/>
+  <!-- вход-лаз -->
+  <path d="M24 55 L24 46 Q32 39 40 46 L40 55 Z" fill="#5B4A6F"/>
+  <path d="M26 55 L26 47 Q32 41.5 38 47 L38 55 Z" fill="#3E3350"/>
+  <!-- рыбка на вывеске -->
+  <g transform="translate(32 22)">
+    <ellipse cx="0" cy="0" rx="6" ry="3.6" fill="#FFD65C"/>
+    <path d="M5 0 L9.5 -3.4 L9.5 3.4 Z" fill="#FFD65C"/>
+    <circle cx="-2.6" cy="-0.8" r="1" fill="#5B4A6F"/>
+  </g>
+  <!-- травка у входа -->
+  <g stroke="#7ED9A0" stroke-width="2" stroke-linecap="round">
+    <path d="M12 55 L10 50"/><path d="M16 55 L15 51"/>
+    <path d="M52 55 L54 50"/><path d="M48 55 L49 51"/>
+  </g>
+</svg>
