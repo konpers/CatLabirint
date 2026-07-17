@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Монетка. Заменяешь на свою картинку? Положи файл с тем же именем. -->
+  <ellipse cx="32" cy="54" rx="15" ry="4" fill="#000000" opacity="0.13"/>
+  <!-- боковой торец монеты (объём) -->
+  <ellipse cx="32" cy="34" rx="20" ry="20" fill="#D99A2B"/>
+  <!-- лицевая сторона -->
+  <ellipse cx="32" cy="31" rx="20" ry="20" fill="#FFD65C"/>
+  <ellipse cx="32" cy="31" rx="15" ry="15" fill="#FFE79A"/>
+  <ellipse cx="32" cy="31" rx="15" ry="15" fill="none" stroke="#E0A83A" stroke-width="2"/>
+  <!-- лапка/звёздочка в центре — «кошачья валюта» -->
+  <path d="M32 22 L34.6 28.4 L41.4 28.9 L36.2 33.3 L37.9 40 L32 36.3 L26.1 40 L27.8 33.3 L22.6 28.9 L29.4 28.4 Z"
+        fill="#E0A83A"/>
+  <!-- блик -->
+  <ellipse cx="25" cy="24" rx="4.5" ry="6" fill="#FFFFFF" opacity="0.55" transform="rotate(-25 25 24)"/>
+</svg>

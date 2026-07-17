@@ -30,6 +30,7 @@ export const IMAGES = [
 
   { key: 'box',  path: 'assets/sprites/box.svg' },   // безопасная зона
   { key: 'exit', path: 'assets/sprites/exit.svg' },  // выход из лабиринта
+  { key: 'coin', path: 'assets/sprites/coin.svg' },  // монетка на карте
 ];
 
 // Звуки. Файлов пока нет — просто положи их в assets/sfx/, игра подхватит сама.
@@ -37,6 +38,7 @@ export const SOUNDS = [
   { key: 'meow', path: 'assets/sfx/meow.mp3' },
   { key: 'win',  path: 'assets/sfx/win.mp3' },
   { key: 'bark', path: 'assets/sfx/bark.mp3' },
+  { key: 'coin', path: 'assets/sfx/coin.mp3' },
 ];
 
 // Сюда попадают только реально существующие звуки — заполняется в main.js.

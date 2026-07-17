@@ -1,5 +1,7 @@
 import { BootScene } from './scenes/BootScene.js';
 import { MenuScene } from './scenes/MenuScene.js';
+import { LevelSelectScene } from './scenes/LevelSelectScene.js';
+import { ShopScene } from './scenes/ShopScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { UIScene } from './scenes/UIScene.js';
 import { PALETTE, detectSounds } from './config/assets.js';
@@ -35,7 +37,7 @@ const config = {
   // зуме камеры (~0.87) движущийся котик попадает «между пикселями» и
   // размазывается — жалоба с теста на телефоне.
   render: { antialias: true, roundPixels: true },
-  scene: [BootScene, MenuScene, GameScene, UIScene],
+  scene: [BootScene, MenuScene, LevelSelectScene, ShopScene, GameScene, UIScene],
 };
 
 const game = new Phaser.Game(config);

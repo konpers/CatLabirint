@@ -4,9 +4,10 @@ import { MazeGenerator, WALL, FLOOR, floorTiles, deadEndTiles, spreadPick } from
 import { Joystick } from '../systems/Joystick.js';
 import { Cat } from '../entities/Cat.js';
 import { Dog, pickSpawnTile, createDogAnims } from '../entities/Dog.js';
-import { randomDogBreed } from '../config/dogs.js';
-import { getLevel, LEVELS, TILE, DOG_APPROACH_BUDGET, dogSpeedFor } from '../config/levels.js';
+import { randomEnemyBreed } from '../config/dogs.js';
+import { getLevel, TOTAL_LEVELS, TILE, DOG_APPROACH_BUDGET, dogSpeedFor, COINS_PER_LEVEL } from '../config/levels.js';
 import { PALETTE, FONT } from '../config/assets.js';
+import * as progress from '../config/progress.js';
 
 const WALL_H = 14; // высота "боковой грани" стены — она и создаёт эффект 2.5D
 
@@ -20,9 +21,10 @@ export class GameScene extends Phaser.Scene {
 
   init(data) {
     this.levelNum = data.level || 1;
-    this.skin = data.skin || 'persik';
+    this.skin = data.skin || progress.getSelectedCat();
     this.cfg = getLevel(this.levelNum);
     this.finished = false;
+    this.collected = 0; // монет собрано на этом уровне (банкуется только при победе)
   }
 
   create() {
@@ -31,12 +33,15 @@ export class GameScene extends Phaser.Scene {
     this._buildMaze();
     this._drawMaze();
     this._placeObjects();
+    this._placeCoins();
     this._setupCat();
     this._setupCamera();
     this._setupDogs();
 
     this.joystick = new Joystick(this);
-    this.scene.launch('UI', { level: this.levelNum, hint: this.cfg.hint });
+    // Стартовый баланс передаём в данных запуска: launched-сцена ещё не прошла
+    // свой create(), и вызывать её setCoins() прямо сейчас нельзя (label ещё null).
+    this.scene.launch('UI', { level: this.levelNum, hint: this.cfg.hint, coins: progress.getCoins() });
     this.ui = this.scene.get('UI');
 
     this.startedAt = this.time.now;
@@ -176,6 +181,7 @@ export class GameScene extends Phaser.Scene {
     const spots = spreadPick(candidates, this.cfg.safeZones, minDist);
 
     this.safeZones = this.physics.add.staticGroup();
+    this.boxTiles = spots.slice(); // запоминаем, чтобы не ставить монету на коробку
     for (const t of spots) {
       const p = this.maze.tileToWorld(t.x, t.y);
       // мягкое свечение под коробкой — ребёнок должен считывать «сюда можно»
@@ -191,12 +197,64 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // --- Монеты на карте -------------------------------------------------
+
+  _placeCoins() {
+    this.coinGroup = this.physics.add.group();
+    const n = this.cfg.coins || 0;
+    if (!n) return;
+
+    // Разбрасываем по проходимым тайлам, исключая старт, выход и коробки —
+    // монета под котиком на старте засчиталась бы «на халяву», а на выходе
+    // толкала бы случайно закончить уровень.
+    const taken = new Set([
+      `${this.startTile.x},${this.startTile.y}`,
+      `${this.exitTile.x},${this.exitTile.y}`,
+      ...this.boxTiles.map((t) => `${t.x},${t.y}`),
+    ]);
+    const free = this.maze.floors.filter((t) => !taken.has(`${t.x},${t.y}`));
+    const spots = spreadPick(free, n, 2); // разносим монеты друг от друга
+
+    for (const t of spots) {
+      const p = this.maze.tileToWorld(t.x, t.y);
+      const coin = this.coinGroup.create(p.x, p.y, 'coin').setDepth(p.y - 8);
+      coin.setScale(TILE * 0.55 / coin.width);
+      coin.body.setCircle(coin.width * 0.4, coin.width * 0.1, coin.width * 0.1);
+      // лёгкое покачивание — монетка «зовёт» её подобрать
+      this.tweens.add({
+        targets: coin, y: p.y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+    }
+  }
+
+  _collectCoin(cat, coin) {
+    if (!coin.active) return;
+    coin.disableBody(true, false);
+    this.collected += 1;
+    this.sfx('coin');
+    // всплывающий "+1" и растворение монетки
+    const pop = this.add
+      .text(coin.x, coin.y - 6, '+1', {
+        fontFamily: FONT, fontSize: '18px', color: '#E0A83A', stroke: '#FFFFFF', strokeThickness: 4,
+      })
+      .setOrigin(0.5)
+      .setDepth(20000);
+    this.tweens.add({ targets: pop, y: pop.y - 26, alpha: 0, duration: 700, onComplete: () => pop.destroy() });
+    this.tweens.add({
+      targets: coin, scale: 0, angle: 180, duration: 260, ease: 'Back.easeIn',
+      onComplete: () => coin.destroy(),
+    });
+    // HUD показывает текущий итог: сохранённые + собранные в этом забеге
+    this.ui?.setCoins(progress.getCoins() + this.collected);
+  }
+
   _setupCat() {
     const p = this.maze.tileToWorld(this.startTile.x, this.startTile.y);
     this.cat = new Cat(this, p.x, p.y, this.skin);
     this.physics.add.collider(this.cat, this.walls);
 
     this.physics.add.overlap(this.cat, this.exit, () => this._win(), null, this);
+    this.physics.add.overlap(this.cat, this.coinGroup, this._collectCoin, null, this);
 
     // Появление котика
     this.cat.setScale(0);
@@ -282,8 +340,9 @@ export class GameScene extends Phaser.Scene {
     const catTile = this.maze.worldToTile(this.cat.x, this.cat.y);
     const t = pickSpawnTile(this.maze, catTile, DOG_SPAWN_MIN, this.dogReach);
     const p = this.maze.tileToWorld(t.x, t.y);
-    // Порода случайная — стая получается разношёрстной, а встречи разнообразнее
-    const dog = new Dog(this, p.x, p.y, this.maze, dogSpeedFor(this.cfg), randomDogBreed());
+    // Порода — случайная из ВКЛЮЧЁННЫХ игроком в магазине (см. progress)
+    const breed = randomEnemyBreed(progress.getEnabledDogs());
+    const dog = new Dog(this, p.x, p.y, this.maze, dogSpeedFor(this.cfg), breed);
     this.dogs.add(dog);
     this.physics.add.collider(dog, this.walls);
   }
@@ -326,12 +385,24 @@ export class GameScene extends Phaser.Scene {
       duration: 300, yoyo: true, repeat: 1,
     });
 
-    const last = this.levelNum >= LEVELS.length;
-    this.ui?.showMessage(last ? 'Ура! Ты прошла всю игру!' : `Уровень ${this.levelNum} пройден!`);
+    // Банк монет — ТОЛЬКО при победе: собранные на карте + бонус за прохождение.
+    // При гибели собранное сгорает, иначе фарм ломается фермой смертей.
+    const earned = COINS_PER_LEVEL + this.collected;
+    progress.addCoins(earned);
+    progress.markLevelComplete(this.levelNum, TOTAL_LEVELS);
+    this.ui?.setCoins(progress.getCoins());
 
-    this.time.delayedCall(1600, () => {
+    const last = this.levelNum >= TOTAL_LEVELS;
+    this.ui?.showMessage(
+      (last ? 'Ура! Ты прошла всю игру!' : `Уровень ${this.levelNum} пройден!`) +
+        `\n+${earned} 🪙`
+    );
+
+    this.time.delayedCall(1700, () => {
       this.scene.stop('UI');
-      if (last) this.scene.start('Menu');
+      // Обычное прохождение — на следующий уровень. Последний — на выбор уровня,
+      // чтобы фарм был под рукой (перепройти любой открытый).
+      if (last) this.scene.start('LevelSelect');
       else this.scene.start('Game', { level: this.levelNum + 1, skin: this.skin });
     });
   }

@@ -12,6 +12,7 @@ export class UIScene extends Phaser.Scene {
   init(data) {
     this.levelNum = data.level || 1;
     this.hint = data.hint || '';
+    this.startCoins = data.coins || 0;
     // Режим бега помним между уровнями и перезапусками: включил один раз —
     // и не надо жать заново после каждой пойманной собаки.
     this.runHeld = localStorage.getItem(RUN_KEY) === '1';
@@ -24,6 +25,13 @@ export class UIScene extends Phaser.Scene {
     this.add
       .text(14, 12, `Уровень ${this.levelNum}`, {
         fontFamily: FONT, fontSize: '20px', color: '#FFFFFF', stroke: '#5B4A6F', strokeThickness: 4,
+      })
+      .setScrollFactor(0);
+
+    // Счётчик монет — под номером уровня
+    this.coinLabel = this.add
+      .text(14, 40, `🪙 ${this.startCoins}`, {
+        fontFamily: FONT, fontSize: '19px', color: '#FFFFFF', stroke: '#B77E1E', strokeThickness: 4,
       })
       .setScrollFactor(0);
 
@@ -142,21 +150,26 @@ export class UIScene extends Phaser.Scene {
       .setInteractive(); // глушит клики по игре под панелью
 
     const boxW = Math.min(300, w * 0.86);
-    const box = this.add.rectangle(w / 2, h / 2, boxW, 250, 0xFFF6EC).setStrokeStyle(4, PALETTE.ui, 0.35);
+    const box = this.add.rectangle(w / 2, h / 2, boxW, 316, 0xFFF6EC).setStrokeStyle(4, PALETTE.ui, 0.35);
     const title = this.add
-      .text(w / 2, h / 2 - 88, 'Пауза', { fontFamily: FONT, fontSize: '26px', color: '#5B4A6F' })
+      .text(w / 2, h / 2 - 120, 'Пауза', { fontFamily: FONT, fontSize: '26px', color: '#5B4A6F' })
       .setOrigin(0.5);
 
+    const iw = boxW - 40;
     const items = [
-      this._menuItem(w / 2, h / 2 - 34, boxW - 40, 0x7ED9A0, 'Продолжить', () => this._closeMenu()),
-      this._menuItem(w / 2, h / 2 + 24, boxW - 40, 0xFFD65C, 'Начать заново', () => {
+      this._menuItem(w / 2, h / 2 - 70, iw, 0x7ED9A0, 'Продолжить', () => this._closeMenu()),
+      this._menuItem(w / 2, h / 2 - 14, iw, 0xFFD65C, 'Начать заново', () => {
         // Заново ТЕКУЩИЙ уровень (с новым лабиринтом — так устроен restart)
         const { levelNum, skin } = game;
         this._closeMenu();
         game.scene.restart({ level: levelNum, skin });
         this.scene.stop(); // Game.create поднимет свежий HUD сам
       }),
-      this._menuItem(w / 2, h / 2 + 82, boxW - 40, 0xF2A8B4, 'В главное меню', () => {
+      this._menuItem(w / 2, h / 2 + 42, iw, 0xFFC178, 'Магазин', () => {
+        this.scene.stop('Game');
+        this.scene.start('Shop');
+      }),
+      this._menuItem(w / 2, h / 2 + 98, iw, 0xF2A8B4, 'В главное меню', () => {
         this.scene.stop('Game');
         this.scene.start('Menu'); // start останавливает UI и открывает меню
       }),
@@ -218,6 +231,10 @@ export class UIScene extends Phaser.Scene {
 
   setSafe(on) {
     this.safeLabel?.setVisible(on);
+  }
+
+  setCoins(n) {
+    this.coinLabel?.setText(`🪙 ${n}`);
   }
 
   showMessage(text) {

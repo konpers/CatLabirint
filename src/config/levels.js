@@ -1,19 +1,23 @@
-// Настройки 5 уровней. Крутить баланс — здесь.
+// Настройки 8 уровней. Крутить баланс — здесь.
 //
-// cols/rows   — размер сетки В ЯЧЕЙКАХ (реальная карта в тайлах: 2*n+1)
+// cols/rows   — размер сетки В ЯЧЕЙКАХ (реальная карта в тайлах: 2*n+1).
+//               Держим ≤19 ячеек (39 тайлов): BFS и камера проверены до 35×35.
 // braid       — доля тупиков, которые пробиваются в петли (0 = чистый лабиринт,
 //               больше = больше путей обхода, легче убегать от собак)
-// dogs        — сколько собак живёт на уровне одновременно
+// dogs        — сколько собак живёт на уровне одновременно (ТЗ: 0,0,1,1,2,2,3,3)
 // dogSpeed    — скорость собаки ДОЛЕЙ от скорости бегущего котика.
 //               Растёт от уровня к уровню: сначала от собаки легко убежать,
 //               к финалу она почти догоняет. Держать строго < 1, иначе
 //               убежать невозможно в принципе и остаётся только коробка.
+// coins       — сколько монет разбросано по карте (кроме +5 за прохождение)
 // safeZones   — сколько коробок-укрытий разбросано по карте
 // spawnDelay  — через сколько мс после старта появляется первая собака
 // respawnGap  — пауза между исчезновением собаки и появлением следующей
 
 export const DOG_LIFETIME = 15000; // 15 сек ПОГОНИ — из ГДД
 export const IDLE_TIMEOUT = 20000; // 20 сек простоя до idle-анимации — из ГДД
+
+export const COINS_PER_LEVEL = 5; // монет за прохождение уровня (кроме собранных)
 
 // --- Как собака находит котика ---
 //
@@ -34,31 +38,48 @@ export const DOG_APPROACH_MAX = 32000;
 
 export const LEVELS = [
   {
-    n: 1, cols: 7, rows: 7, braid: 0.30, dogs: 0, safeZones: 4,
+    n: 1, cols: 7, rows: 7, braid: 0.30, dogs: 0, coins: 3, safeZones: 4,
     spawnDelay: 0, respawnGap: 0,
-    hint: 'Веди котика к домику!',
+    hint: 'Веди котика к домику! Собирай монетки.',
   },
   {
-    n: 2, cols: 11, rows: 11, braid: 0.15, dogs: 0, safeZones: 5,
+    n: 2, cols: 9, rows: 9, braid: 0.18, dogs: 0, coins: 5, safeZones: 5,
     spawnDelay: 0, respawnGap: 0,
     hint: 'Лабиринт стал больше. Не заблудись!',
   },
   {
-    n: 3, cols: 13, rows: 13, braid: 0.20, dogs: 1, dogSpeed: 0.7, safeZones: 6,
+    n: 3, cols: 11, rows: 11, braid: 0.20, dogs: 1, dogSpeed: 0.70, coins: 6, safeZones: 6,
     spawnDelay: 5000, respawnGap: 4000,
     hint: 'Осторожно, собака! Прячься в коробку.',
   },
   {
-    n: 4, cols: 15, rows: 15, braid: 0.25, dogs: 2, dogSpeed: 0.8, safeZones: 7,
+    n: 4, cols: 13, rows: 13, braid: 0.22, dogs: 1, dogSpeed: 0.75, coins: 8, safeZones: 6,
+    spawnDelay: 4500, respawnGap: 3500,
+    hint: 'Собака стала шустрее!',
+  },
+  {
+    n: 5, cols: 15, rows: 15, braid: 0.25, dogs: 2, dogSpeed: 0.80, coins: 10, safeZones: 7,
     spawnDelay: 4000, respawnGap: 3000,
     hint: 'Теперь их двое!',
   },
   {
-    n: 5, cols: 17, rows: 17, braid: 0.30, dogs: 3, dogSpeed: 0.9, safeZones: 8,
+    n: 6, cols: 17, rows: 17, braid: 0.27, dogs: 2, dogSpeed: 0.85, coins: 8, safeZones: 7,
+    spawnDelay: 3500, respawnGap: 3000,
+    hint: 'Две собаки, и лабиринт больше.',
+  },
+  {
+    n: 7, cols: 19, rows: 19, braid: 0.30, dogs: 3, dogSpeed: 0.90, coins: 6, safeZones: 8,
     spawnDelay: 3000, respawnGap: 2500,
-    hint: 'Финал! Три собаки. Удачи!',
+    hint: 'Три собаки! Держись укрытий.',
+  },
+  {
+    n: 8, cols: 19, rows: 19, braid: 0.32, dogs: 3, dogSpeed: 0.95, coins: 5, safeZones: 8,
+    spawnDelay: 2500, respawnGap: 2200,
+    hint: 'Финал! Самые быстрые собаки. Удачи!',
   },
 ];
+
+export const TOTAL_LEVELS = LEVELS.length;
 
 export const SPEED = {
   catWalk: 110,
