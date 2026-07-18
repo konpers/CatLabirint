@@ -1,11 +1,14 @@
-// Магазин и кастомизация. Две секции:
-//   Котики — покупка за монеты + выбор персонажа (кого ведём по лабиринту).
-//   Собаки — покупка пород + включение/выключение их как активных врагов.
+// Магазин и кастомизация. Три секции:
+//   Персонажи  — покупка за монеты + выбор, кого ведём по лабиринту.
+//   Враги      — покупка пород + включение/выключение как активных врагов.
+//   Способности — расходники (стек зарядов, не разовая разблокировка).
 //
-// Данные берутся из cats.js / dogs.js; что открыто/выбрано/включено — из progress.
+// Данные берутся из cats.js / dogs.js / abilities.js; что открыто/выбрано/
+// включено/сколько зарядов на руках — из progress.
 
 import { CATS } from '../config/cats.js';
 import { DOGS } from '../config/dogs.js';
+import { ABILITIES } from '../config/abilities.js';
 import { PALETTE, FONT } from '../config/assets.js';
 import * as progress from '../config/progress.js';
 
@@ -44,9 +47,19 @@ export class ShopScene extends Phaser.Scene {
       .text(w / 2, dogY, '🐶 Враги (кто гоняется)', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
       .setOrigin(0.5);
     this.dogCards = [];
-    this._grid(DOGS, dogY + 22, cols, size, (dog, x, y, s) => this._dogCard(dog, x, y, s));
+    const dogRows = this._grid(DOGS, dogY + 22, cols, size, (dog, x, y, s) => this._dogCard(dog, x, y, s));
 
-    this._hint(w / 2, h * 0.96);
+    // --- Секция способностей ---
+    const abilityY = dogY + 22 + dogRows * (size * 1.25 + 12) + 30;
+    this.add
+      .text(w / 2, abilityY, '🎒 Способности', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
+      .setOrigin(0.5);
+    this.abilityCards = [];
+    const abilityRows = this._grid(
+      ABILITIES, abilityY + 22, cols, size, (ab, x, y, s) => this._abilityCard(ab, x, y, s)
+    );
+
+    this._hint(w / 2, abilityY + 22 + abilityRows * (size * 1.25 + 12) + 20);
   }
 
   /**
@@ -176,9 +189,53 @@ export class ShopScene extends Phaser.Scene {
     }
   }
 
+  // --- Карточка способности: не лочится, всегда докупается заряд ---
+
+  _abilityCard(ability, x, y, size) {
+    const c = this.add.container(x, y);
+    const bg = this.add.rectangle(0, 0, size, size * 1.25, PALETTE.uiLight).setStrokeStyle(4, PALETTE.ui, 0.25);
+    if (bg.setRadius) bg.setRadius(14);
+    const sprite = this.add.image(0, -size * 0.12, ability.id);
+    sprite.setScale(Math.min((size * 0.55) / sprite.width, (size * 0.55) / sprite.height));
+    const label = this.add
+      .text(0, size * 0.42, `🪙 ${ability.price}`, { fontFamily: FONT, fontSize: '13px', color: '#B77E1E' })
+      .setOrigin(0.5);
+    // бейдж "на руках" в углу — стек, не замок
+    const owned = this.add
+      .text(size * 0.36, -size * 0.5, '', {
+        fontFamily: FONT, fontSize: '14px', color: '#FFFFFF',
+        backgroundColor: '#3E7D5A', padding: { x: 6, y: 2 },
+      })
+      .setOrigin(0.5);
+    c.add([bg, sprite, label, owned]);
+
+    bg.setInteractive({ useHandCursor: true });
+    bg.on('pointerdown', () => this._onAbilityTap(ability));
+
+    const card = { kind: 'ability', item: ability, container: c, bg, sprite, label, owned };
+    this.abilityCards.push(card);
+    this._paintAbility(card);
+    return c;
+  }
+
+  _onAbilityTap(ability) {
+    if (progress.buyItemCharge(ability.id, ability.price)) {
+      this._flashCoins();
+      this._refresh();
+    } else {
+      this._denied();
+    }
+  }
+
+  _paintAbility(card) {
+    const n = progress.getItemCount(card.item.id);
+    card.owned.setText(`×${n}`).setVisible(n > 0);
+  }
+
   _refresh() {
     this.catCards.forEach((c) => this._paintCat(c));
     this.dogCards.forEach((c) => this._paintDog(c));
+    this.abilityCards.forEach((c) => this._paintAbility(c));
     this.coinBadge.setText(`🪙 ${progress.getCoins()}`);
   }
 

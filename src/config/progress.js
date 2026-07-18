@@ -25,6 +25,7 @@ function defaults() {
     enabledDogs: freeDogIds(), // какие породы сейчас гоняются за котиком
     selectedCat: localStorage.getItem(OLD_SKIN_KEY) || DEFAULT_CAT, // миграция
     maxLevel: 1, // до какого уровня открыт выбор
+    items: {}, // инвентарь расходников-способностей: { bone: 2, shield: 1, ... }
   };
 }
 
@@ -47,6 +48,7 @@ function load() {
   state.unlockedDogs = unique([...freeDogIds(), ...(state.unlockedDogs || [])]);
   state.enabledDogs = (state.enabledDogs || []).filter((id) => state.unlockedDogs.includes(id));
   if (!state.enabledDogs.length) state.enabledDogs = freeDogIds(); // хотя бы одна активна
+  state.items = state.items || {};
   return state;
 }
 
@@ -165,4 +167,32 @@ export function markLevelComplete(n, total) {
     s.maxLevel = next;
     save();
   }
+}
+
+// --- Способности (расходники) -----------------------------------------------
+//
+// В отличие от котиков/собак это НЕ разовая разблокировка, а стек зарядов:
+// купил дважды — есть 2 использования. Отсутствующий id читается как 0, так
+// что добавление новой способности в abilities.js не требует миграции сейва.
+
+export function getItemCount(id) {
+  return load().items[id] || 0;
+}
+
+/** Покупка ещё одного заряда способности. true — куплен, false — не хватило монет. */
+export function buyItemCharge(id, price) {
+  if (!spendCoins(price)) return false;
+  const s = load();
+  s.items[id] = (s.items[id] || 0) + 1;
+  save();
+  return true;
+}
+
+/** Тратит один заряд способности. true — потрачен, false — зарядов не было. */
+export function useItemCharge(id) {
+  const s = load();
+  if (!s.items[id]) return false;
+  s.items[id] -= 1;
+  save();
+  return true;
 }

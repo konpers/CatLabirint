@@ -10,6 +10,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
 
     this.skinId = skinId;
     this.isSafe = false;      // в коробке ли — от этого зависит, ловит ли собака
+    this.hasShield = false;   // под щитом ли — одна поимка прощается (см. GameScene)
     this.idleTimer = 0;
     this.idleBusy = false;    // проигрывается ли сейчас idle-анимация
 
@@ -37,16 +38,16 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       this._cancelIdle();
       this.idleTimer = 0;
 
-      const speed = input.running ? SPEED.catRun : SPEED.catWalk;
-      this.setVelocity(input.x * speed * input.force, input.y * speed * input.force);
+      // Бег — единственная скорость котика (кнопку-переключатель убрали).
+      this.setVelocity(input.x * SPEED.catRun * input.force, input.y * SPEED.catRun * input.force);
 
       // разворот мордочкой по ходу движения (на картинке котик смотрит вправо)
       if (input.x < -0.1) this.setFlipX(true);
       else if (input.x > 0.1) this.setFlipX(false);
 
-      // Покачивание при ходьбе. Кадр всего один, поэтому «шаги» изображаем
-      // лёгким пружинящим сжатием — на бегу чаще.
-      const wobble = Math.sin(this.scene.time.now / (input.running ? 60 : 100)) * 0.05;
+      // Покачивание при беге. Кадр всего один, поэтому «шаги» изображаем
+      // лёгким пружинящим сжатием.
+      const wobble = Math.sin(this.scene.time.now / 60) * 0.05;
       this.setScale(this.baseScale, this.baseScale + wobble);
     } else {
       this.setVelocity(0, 0);

@@ -1,11 +1,15 @@
 // Игровая сцена: строит лабиринт, рулит котиком, собаками и переходами уровней.
 
 import { MazeGenerator, WALL, FLOOR, floorTiles, deadEndTiles, spreadPick } from '../systems/MazeGenerator.js';
+import { distanceMap } from '../systems/Pathfinder.js';
 import { Joystick } from '../systems/Joystick.js';
 import { Cat } from '../entities/Cat.js';
 import { Dog, pickSpawnTile, createDogAnims } from '../entities/Dog.js';
 import { randomEnemyBreed } from '../config/dogs.js';
-import { getLevel, TOTAL_LEVELS, TILE, DOG_APPROACH_BUDGET, dogSpeedFor, COINS_PER_LEVEL } from '../config/levels.js';
+import {
+  getLevel, TOTAL_LEVELS, TILE, DOG_APPROACH_BUDGET, dogSpeedFor, COINS_PER_LEVEL,
+  BONE_RADIUS_TILES, BONE_DISTRACT_MS, SHIELD_FREEZE_MS, SHIELD_MAP_CHANCE,
+} from '../config/levels.js';
 import { PALETTE, FONT } from '../config/assets.js';
 import * as progress from '../config/progress.js';
 
@@ -25,6 +29,12 @@ export class GameScene extends Phaser.Scene {
     this.cfg = getLevel(this.levelNum);
     this.finished = false;
     this.collected = 0; // монет собрано на этом уровне (банкуется только при победе)
+
+    // Сцена переиспользуется при restart (Phaser не создаёт новый инстанс),
+    // а this.shieldAura создаётся лениво внутри _applyShield — без сброса тут
+    // после restart осталась бы ссылка на GameObject из ПРОШЛОГО забега,
+    // уже уничтоженный вместе со старой сценой.
+    this.shieldAura = null;
   }
 
   create() {
@@ -34,6 +44,7 @@ export class GameScene extends Phaser.Scene {
     this._drawMaze();
     this._placeObjects();
     this._placeCoins();
+    this._placeShieldPickup();
     this._setupCat();
     this._setupCamera();
     this._setupDogs();
@@ -248,6 +259,102 @@ export class GameScene extends Phaser.Scene {
     this.ui?.setCoins(progress.getCoins() + this.collected);
   }
 
+  // --- Щит: редкий пикап на карте -------------------------------------
+
+  // Спавнится только на уровнях, где вообще есть от чего защищаться, и
+  // с вероятностью SHIELD_MAP_CHANCE — иначе игрок находил бы его каждый раз
+  // и покупка в магазине потеряла бы смысл.
+  _placeShieldPickup() {
+    this.shieldGroup = this.physics.add.group();
+    if (!this.cfg.dogs) return;
+    if (Math.random() >= SHIELD_MAP_CHANCE) return;
+
+    const coinTiles = this.coinGroup.getChildren().map((c) => this.maze.worldToTile(c.x, c.y));
+    const taken = new Set([
+      `${this.startTile.x},${this.startTile.y}`,
+      `${this.exitTile.x},${this.exitTile.y}`,
+      ...this.boxTiles.map((t) => `${t.x},${t.y}`),
+      ...coinTiles.map((t) => `${t.x},${t.y}`),
+    ]);
+    const free = this.maze.floors.filter((t) => !taken.has(`${t.x},${t.y}`));
+    if (!free.length) return;
+    const t = free[Math.floor(Math.random() * free.length)];
+    const p = this.maze.tileToWorld(t.x, t.y);
+    const pickup = this.shieldGroup.create(p.x, p.y, 'shield').setDepth(p.y - 8);
+    pickup.setScale(TILE * 0.6 / pickup.width);
+    pickup.body.setCircle(pickup.width * 0.4, pickup.width * 0.1, pickup.width * 0.1);
+    this.tweens.add({
+      targets: pickup, y: p.y - 5, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+  }
+
+  _collectShield(cat, pickup) {
+    if (!pickup.active) return;
+    pickup.destroy();
+    if (!cat.hasShield) this._applyShield();
+  }
+
+  /** Надевает ауру щита на котика — источник неважен (магазин про запас или пикап). */
+  _applyShield() {
+    this.cat.hasShield = true;
+    this.sfx('shield');
+    if (!this.shieldAura) {
+      this.shieldAura = this.add.circle(this.cat.x, this.cat.y, TILE * 0.62, 0x7EC8F2, 0.35)
+        .setStrokeStyle(3, 0x4FA8E0, 0.8)
+        .setDepth(20000);
+      this.tweens.add({
+        targets: this.shieldAura, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+    }
+    this.shieldAura.setPosition(this.cat.x, this.cat.y).setVisible(true).setScale(1).setAlpha(1);
+  }
+
+  /** Щит поймал собаку вместо котика: аура лопается, собака замирает. */
+  _popShield(dog) {
+    this.cat.hasShield = false;
+    this.sfx('shieldPop');
+    dog.freeze(SHIELD_FREEZE_MS);
+    if (this.shieldAura) {
+      this.tweens.killTweensOf(this.shieldAura);
+      this.tweens.add({
+        targets: this.shieldAura, scale: 1.8, alpha: 0, duration: 250, ease: 'Quad.easeOut',
+        onComplete: () => this.shieldAura?.setVisible(false),
+      });
+    }
+    this.cameras.main.flash(120, 126, 200, 242); // мягкая вспышка щита, не тревожная
+  }
+
+  // --- Косточка: активная способность отвлечения -----------------------
+
+  /** Вызывается из UIScene по тапу на кнопку способности. */
+  _useBone() {
+    if (this.finished) return false;
+    if (!progress.useItemCharge('bone')) return false;
+
+    const catTile = this.maze.worldToTile(this.cat.x, this.cat.y);
+    const p = this.maze.tileToWorld(catTile.x, catTile.y);
+    const bone = this.add.image(p.x, p.y, 'bone').setDepth(p.y - 6).setScale(0);
+    this.tweens.add({ targets: bone, scale: TILE * 0.6 / bone.width, duration: 200, ease: 'Back.easeOut' });
+    this.tweens.add({
+      targets: bone, y: p.y - 4, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 200,
+    });
+
+    // BFS-дистанция от косточки по лабиринту — та же утилита, что считает
+    // дальность спавна собак (pickSpawnTile), только теперь от точки косточки.
+    const dist = distanceMap(this.maze.grid, catTile);
+    for (const dog of this.dogs.getChildren()) {
+      if (dog.dead) continue;
+      const dt = this.maze.worldToTile(dog.x, dog.y);
+      const steps = dist.get(`${dt.x},${dt.y}`);
+      if (steps !== undefined && steps <= BONE_RADIUS_TILES) dog.distract(catTile, BONE_DISTRACT_MS);
+    }
+
+    this.sfx('bone');
+    this.ui?.setBoneCount(progress.getItemCount('bone'));
+    this.time.delayedCall(BONE_DISTRACT_MS, () => bone.destroy());
+    return true;
+  }
+
   _setupCat() {
     const p = this.maze.tileToWorld(this.startTile.x, this.startTile.y);
     this.cat = new Cat(this, p.x, p.y, this.skin);
@@ -255,10 +362,18 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.overlap(this.cat, this.exit, () => this._win(), null, this);
     this.physics.add.overlap(this.cat, this.coinGroup, this._collectCoin, null, this);
+    this.physics.add.overlap(this.cat, this.shieldGroup, this._collectShield, null, this);
 
     // Появление котика
     this.cat.setScale(0);
     this.tweens.add({ targets: this.cat, scale: this.cat.baseScale, duration: 400, ease: 'Back.easeOut' });
+
+    // Щит, купленный в магазине про запас, экипируется автоматически на
+    // старте уровня — без кнопки, без выбора момента, заряд тратится сразу.
+    if (progress.getItemCount('shield') > 0) {
+      progress.useItemCharge('shield');
+      this._applyShield();
+    }
   }
 
   _setupCamera() {
@@ -349,7 +464,13 @@ export class GameScene extends Phaser.Scene {
 
   _onDogTouch(cat, dog) {
     if (this.finished || dog.dead) return;
+    // Замороженная собака не ловит — это не спецэффект щита, а логика: раз она
+    // оглушена и не двигается, она физически остаётся в зоне касания на кадры
+    // ПОСЛЕ того, как щит уже лопнул, и без этой проверки тут же засчитывалась
+    // бы вторая, нелегитимная поимка тем же прыжком.
+    if (dog.frozenUntil > this.time.now) return;
     if (cat.isSafe) return; // в коробке собака не страшна — это вся суть укрытия
+    if (cat.hasShield) { this._popShield(dog); return; } // щит прощает одну поимку
     this._lose();
   }
 
@@ -413,15 +534,16 @@ export class GameScene extends Phaser.Scene {
     if (this.finished) return;
 
     const input = this.joystick.getVector();
-    // Экранная кнопка «БЕГ» (правый нижний угол HUD). На компьютере бег
-    // остаётся на SHIFT, на полном отклонении джойстика — тоже.
-    if (this.ui?.runHeld && input.force > 0) input.running = true;
     this.cat.update(input, delta);
 
     // В коробке или нет — проверяем каждый кадр: от этого зависит, ловит ли собака
     const wasSafe = this.cat.isSafe;
     this.cat.isSafe = this.physics.overlap(this.cat, this.safeZones);
     if (this.cat.isSafe !== wasSafe) this.ui?.setSafe(this.cat.isSafe);
+
+    // Аура щита ходит вместе с котиком — Cat не контейнер, поэтому позиция
+    // подтягивается вручную, а не через parent/child.
+    if (this.cat.hasShield && this.shieldAura) this.shieldAura.setPosition(this.cat.x, this.cat.y);
 
     for (const dog of this.dogs.getChildren()) dog.update(this.cat, time);
 

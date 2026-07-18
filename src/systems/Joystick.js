@@ -27,7 +27,6 @@ export class Joystick {
       ? scene.input.keyboard.addKeys({
           up: 'W', down: 'S', left: 'A', right: 'D',
           upArrow: 'UP', downArrow: 'DOWN', leftArrow: 'LEFT', rightArrow: 'RIGHT',
-          run: 'SHIFT',
         })
       : null;
 
@@ -86,12 +85,13 @@ export class Joystick {
   }
 
   /**
-   * Единый источник ввода для котика.
-   * @returns {{x:number, y:number, force:number, running:boolean}}
+   * Единый источник ввода для котика. Бег теперь единственная скорость
+   * (кнопку-переключатель убрали), поэтому здесь нет флага running.
+   * @returns {{x:number, y:number, force:number}}
    */
   getVector() {
     if (this.force > 0) {
-      return { ...this.vector, force: this.force, running: this.force > 0.75 };
+      return { ...this.vector, force: this.force };
     }
     // клавиатура — для отладки на компьютере
     if (this.keys) {
@@ -103,10 +103,10 @@ export class Joystick {
       if (this.keys.down.isDown || this.keys.downArrow.isDown) y += 1;
       if (x || y) {
         const len = Math.hypot(x, y);
-        return { x: x / len, y: y / len, force: 1, running: this.keys.run.isDown };
+        return { x: x / len, y: y / len, force: 1 };
       }
     }
-    return { x: 0, y: 0, force: 0, running: false };
+    return { x: 0, y: 0, force: 0 };
   }
 
   destroy() {

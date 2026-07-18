@@ -1,8 +1,8 @@
 // HUD поверх игры. Отдельная сцена — чтобы не ездила вместе с камерой.
 
 import { PALETTE, FONT } from '../config/assets.js';
-
-const RUN_KEY = 'cat_maze_run';
+import { ABILITIES } from '../config/abilities.js';
+import * as progress from '../config/progress.js';
 
 export class UIScene extends Phaser.Scene {
   constructor() {
@@ -13,9 +13,6 @@ export class UIScene extends Phaser.Scene {
     this.levelNum = data.level || 1;
     this.hint = data.hint || '';
     this.startCoins = data.coins || 0;
-    // Режим бега помним между уровнями и перезапусками: включил один раз —
-    // и не надо жать заново после каждой пойманной собаки.
-    this.runHeld = localStorage.getItem(RUN_KEY) === '1';
     this.panel = null; // открытое меню паузы
   }
 
@@ -75,7 +72,7 @@ export class UIScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setVisible(false);
 
-    this._makeRunButton();
+    this._makeAbilityBar();
 
     // Экран телефона меняет размер (поворот, адресная строка) — HUD-кнопки
     // должны переехать вслед за углами.
@@ -83,57 +80,79 @@ export class UIScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.scale.off('resize', this._layout, this));
   }
 
-  // --- Кнопка бега -------------------------------------------------------
-  // Правый нижний угол — под большой палец правой руки (джойстик слева).
+  // --- Бар способностей ----------------------------------------------------
+  // Правый нижний угол — там раньше жила кнопка БЕГ (её убрали, бег теперь
+  // всегда включён, и это место освободилось под способности).
   //
-  // ПЕРЕКЛЮЧАТЕЛЬ, а не «держать»: одной рукой вести джойстик и одновременно
-  // удерживать кнопку неудобно (жалоба с теста). Нажал — режим бега включён и
-  // держится сам, нажал ещё раз — выключен. На компьютере остаётся SHIFT.
+  // Рисуем кнопку для каждой АКТИВНОЙ способности (kind: 'active' в
+  // abilities.js) — сейчас это только «косточка», но цикл уже готов принять
+  // вторую-третью без переделки HUD. Пассивные способности (щит) кнопки не
+  // получают — применяются автоматически.
 
-  _makeRunButton() {
+  _makeAbilityBar() {
     const { width: w, height: h } = this.scale;
-    const c = this.add.container(w - 68, h - 92).setScrollFactor(0).setDepth(500);
+    const active = ABILITIES.filter((a) => a.kind === 'active');
+    this.abilityButtons = {};
 
-    const bg = this.add.circle(0, 0, 44, 0xFFFFFF, 0.35).setStrokeStyle(4, 0x5B4A6F, 0.35);
-    const icon = this.add.text(0, -2, '💨', { fontSize: '34px' }).setOrigin(0.5);
-    const label = this.add
-      .text(0, 26, 'БЕГ', { fontFamily: FONT, fontSize: '13px', color: '#5B4A6F' })
-      .setOrigin(0.5);
-    c.add([bg, icon, label]);
+    active.forEach((ability, i) => {
+      const x = w - 68 - i * 76; // ряд от угла влево, если способностей станет больше
+      const y = h - 92;
+      const c = this.add.container(x, y).setScrollFactor(0).setDepth(500);
 
-    // Зона нажатия крупнее кружка — детский палец не обязан попадать точно.
-    // Координаты зоны — ЛОКАЛЬНЫЕ для кружка: его начало в левом верхнем углу
-    // рамки (не в центре!), поэтому центр зоны = (радиус, радиус).
-    bg.setInteractive(new Phaser.Geom.Circle(44, 44, 58), Phaser.Geom.Circle.Contains);
+      const bg = this.add.circle(0, 0, 44, 0xFFFFFF, 0.35).setStrokeStyle(4, 0x5B4A6F, 0.35);
+      const icon = this.add.text(0, -6, ability.id === 'bone' ? '🦴' : '✨', { fontSize: '30px' }).setOrigin(0.5);
+      const badge = this.add
+        .text(20, -28, '0', {
+          fontFamily: FONT, fontSize: '15px', color: '#FFFFFF',
+          backgroundColor: '#C4563E', padding: { x: 6, y: 2 },
+        })
+        .setOrigin(0.5);
+      c.add([bg, icon, badge]);
 
-    this._runBg = bg;
-    this._runLabel = label;
-    bg.on('pointerdown', () => this._toggleRun());
+      // Зона нажатия крупнее кружка — детский палец не обязан попадать точно.
+      // Координаты — ЛОКАЛЬНЫЕ для кружка: начало в левом верхнем углу рамки
+      // (не в центре!), центр зоны = (радиус, радиус).
+      bg.setInteractive(new Phaser.Geom.Circle(44, 44, 58), Phaser.Geom.Circle.Contains);
+      bg.on('pointerdown', () => this._useAbility(ability.id));
 
-    this.runBtn = c;
-    this._paintRun();
+      this.abilityButtons[ability.id] = { container: c, bg, badge, count: 0 };
+    });
+
+    this._refreshAbilityButtons();
   }
 
-  _toggleRun() {
-    this.runHeld = !this.runHeld;
-    localStorage.setItem(RUN_KEY, this.runHeld ? '1' : '0');
-    this._paintRun();
-    // короткий отклик на нажатие — видно, что кнопка сработала
-    this.tweens.add({ targets: this.runBtn, scale: 0.9, duration: 90, yoyo: true });
+  /** Разовый тап — не переключатель. Пусто, если заряд не расходуется (нет игры/сцены). */
+  _useAbility(id) {
+    const btn = this.abilityButtons[id];
+    if (!btn || btn.count <= 0) return; // кнопка и так должна быть тусклой при 0
+    const game = this.scene.get('Game');
+    if (!game?.scene.isActive() || game.finished) return;
+    const used = id === 'bone' ? game._useBone() : false;
+    if (used) this.tweens.add({ targets: btn.container, scale: 0.88, duration: 90, yoyo: true });
   }
 
-  /** Вид кнопки должен ясно показывать РЕЖИМ: включён бег или нет. */
-  _paintRun() {
-    if (!this._runBg) return;
-    if (this.runHeld) {
-      this._runBg.setFillStyle(0xFFD65C, 0.85);
-      this._runBg.setStrokeStyle(4, 0xE0A83A, 1);
-      this._runLabel.setText('БЕГ ✓').setColor('#7A5A10');
-    } else {
-      this._runBg.setFillStyle(0xFFFFFF, 0.35);
-      this._runBg.setStrokeStyle(4, 0x5B4A6F, 0.35);
-      this._runLabel.setText('БЕГ').setColor('#5B4A6F');
+  /** Перечитывает остатки зарядов из прогресса и перекрашивает кнопки. */
+  _refreshAbilityButtons() {
+    for (const [id, btn] of Object.entries(this.abilityButtons || {})) {
+      this.setAbilityCount(id, progress.getItemCount(id));
     }
+  }
+
+  /** Обновляет бейдж и "живость" кнопки способности. Дёргается из GameScene. */
+  setAbilityCount(id, n) {
+    const btn = this.abilityButtons?.[id];
+    if (!btn) return;
+    btn.count = n;
+    btn.badge.setText(String(n));
+    const has = n > 0;
+    btn.bg.setFillStyle(has ? 0xFFD65C : 0xFFFFFF, has ? 0.85 : 0.25);
+    btn.bg.setStrokeStyle(4, has ? 0xE0A83A : 0x5B4A6F, has ? 1 : 0.2);
+    btn.container.setAlpha(has ? 1 : 0.5);
+  }
+
+  /** Совместимость с GameScene._useBone(), который зовёт именно этот метод. */
+  setBoneCount(n) {
+    this.setAbilityCount('bone', n);
   }
 
   // --- Меню паузы ----------------------------------------------------------
@@ -202,7 +221,9 @@ export class UIScene extends Phaser.Scene {
     const { width: w, height: h } = this.scale;
     this.menuBtn?.setPosition(w - 12, 8);
     this.dogLabel?.setPosition(w - 64, 12);
-    this.runBtn?.setPosition(w - 68, h - 92);
+    Object.values(this.abilityButtons || {}).forEach((btn, i) => {
+      btn.container.setPosition(w - 68 - i * 76, h - 92);
+    });
     this.safeLabel?.setPosition(w / 2, 48);
     // Открытую паузу проще перестроить, чем двигать по частям
     if (this.panel) {

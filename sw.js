@@ -3,7 +3,7 @@
 // ВАЖНО: поменял любой файл — подними версию в CACHE_NAME. Иначе у игрока
 // останется старая версия из кеша, и он будет уверять, что твоя правка не работает.
 
-const CACHE_NAME = 'cat-maze-v8';
+const CACHE_NAME = 'cat-maze-v9';
 
 const ASSETS = [
   './',
@@ -18,6 +18,7 @@ const ASSETS = [
   './src/config/dogs.js',
   './src/config/levels.js',
   './src/config/progress.js',
+  './src/config/abilities.js',
   './src/scenes/BootScene.js',
   './src/scenes/MenuScene.js',
   './src/scenes/LevelSelectScene.js',
@@ -33,6 +34,8 @@ const ASSETS = [
   './assets/sprites/box.svg',
   './assets/sprites/exit.svg',
   './assets/sprites/coin.svg',
+  './assets/sprites/bone.svg',
+  './assets/sprites/shield.svg',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/sfx/meow.mp3',

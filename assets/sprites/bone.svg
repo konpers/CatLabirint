@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Сочная косточка. Заменяешь на свою картинку? Положи файл с тем же именем. -->
+  <ellipse cx="32" cy="54" rx="17" ry="4" fill="#000000" opacity="0.13"/>
+  <!-- тень-подложка кости (объём) -->
+  <path d="M14 24 C14 18 22 18 22 24 C22 20 30 20 30 26 L30 38 C30 44 22 44 22 40 C22 44 14 44 14 38 Z"
+        fill="#E8D9B8" transform="translate(2,2)"/>
+  <!-- само тело кости -->
+  <path d="M14 24 C14 18 22 18 22 24 C22 20 30 20 30 26 L30 38 C30 44 22 44 22 40 C22 44 14 44 14 38 Z"
+        fill="#FAF3E2" stroke="#D9C495" stroke-width="1.5"/>
+  <path d="M34 24 C34 18 42 18 42 24 C42 20 50 20 50 26 L50 38 C50 44 42 44 42 40 C42 44 34 44 34 38 Z"
+        fill="#FAF3E2" stroke="#D9C495" stroke-width="1.5"/>
+  <!-- перемычка, соединяющая два конца -->
+  <rect x="20" y="27" width="24" height="10" rx="4" fill="#FAF3E2" stroke="#D9C495" stroke-width="1.5"/>
+  <!-- блик -->
+  <ellipse cx="21" cy="22" rx="4" ry="5" fill="#FFFFFF" opacity="0.6" transform="rotate(-20 21 22)"/>
+</svg>

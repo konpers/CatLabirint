@@ -56,6 +56,13 @@ export class Dog extends Phaser.Physics.Arcade.Sprite {
     this.spawnedAt = scene.time.now;
     this.noticed = false;    // заметила ли котика (тогда пошёл отсчёт 15 секунд)
     this.noticedAt = 0;
+
+    // Суперспособности игрока. Оба поля — просто таймстемпы "до какого
+    // момента действует", по образцу noticedAt/spawnedAt — без формального
+    // state-machine, только ранние return в update().
+    this.distractedUntil = 0; // отвлечена косточкой
+    this.frozenUntil = 0;     // заморожена щитом
+    this._boneTile = null;
   }
 
   get _anim() {
@@ -101,8 +108,51 @@ export class Dog extends Phaser.Physics.Arcade.Sprite {
     if (time - this.noticedAt >= DOG_LIFETIME) this.vanish('chase');
   }
 
+  /** Косточка отвлекла собаку: бежит к её тайлу вместо котика, забывает погоню. */
+  distract(tile, ms) {
+    if (this.dead) return;
+    this.distractedUntil = this.scene.time.now + ms;
+    this._boneTile = tile;
+    this.path = []; // пересчитается на bone-тайл в следующем тике update()
+    this.repathAt = 0;
+    // Сброс: после возврата собака должна заново подойти и "заметить" котика —
+    // честная передышка игроку, а не мгновенное продолжение погони.
+    this.noticed = false;
+    this.noticedAt = 0;
+  }
+
+  /** Щит поймавшего игрока лопнул на этой собаке: замирает на ms. */
+  freeze(ms) {
+    if (this.dead) return;
+    this.frozenUntil = this.scene.time.now + ms;
+    this.setVelocity(0, 0);
+    this.setTint(0x9AAFDB); // лёгкая синева — заметно, что собака оглушена
+  }
+
   update(cat, time) {
     if (this.dead || !this.active) return;
+
+    if (time < this.frozenUntil) {
+      this.setVelocity(0, 0);
+      this.setDepth(this.y);
+      return;
+    }
+    if (this.isTinted) this.clearTint(); // разморозилась в предыдущих кадрах — снимаем синеву
+
+    if (time < this.distractedUntil) {
+      // Идёт к косточке, а не к котику. _updateLife НЕ вызываем — таймер
+      // погони не тикает, пока собака отвлечена (иначе косточка бы не спасала
+      // от уже почти истёкшей погони).
+      if (time >= this.repathAt) {
+        this.repathAt = time + REPATH_MS;
+        const from = this.maze.worldToTile(this.x, this.y);
+        this.path = findPath(this.maze.grid, from, this._boneTile);
+      }
+      if (!this.anims.isPlaying) { this.setTexture(`dog_${this.breed}_run_0`); this.play(this._anim); }
+      this._followPath();
+      this.setDepth(this.y);
+      return;
+    }
 
     // Маршрут считаем ВСЕГДА: по его длине определяется, заметила ли собака
     // котика. Без этого спрятавшегося котика она бы искала вечно.

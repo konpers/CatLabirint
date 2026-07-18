@@ -28,17 +28,22 @@ export const IMAGES = [
     { key: `dog_${d.id}_wait`, path: `assets/sprites/dog_${d.id}_wait.png` },
   ]),
 
-  { key: 'box',  path: 'assets/sprites/box.svg' },   // безопасная зона
-  { key: 'exit', path: 'assets/sprites/exit.svg' },  // выход из лабиринта
-  { key: 'coin', path: 'assets/sprites/coin.svg' },  // монетка на карте
+  { key: 'box',    path: 'assets/sprites/box.svg' },    // безопасная зона
+  { key: 'exit',   path: 'assets/sprites/exit.svg' },   // выход из лабиринта
+  { key: 'coin',   path: 'assets/sprites/coin.svg' },   // монетка на карте
+  { key: 'bone',   path: 'assets/sprites/bone.svg' },   // способность "косточка"
+  { key: 'shield', path: 'assets/sprites/shield.svg' }, // способность "щит"
 ];
 
 // Звуки. Файлов пока нет — просто положи их в assets/sfx/, игра подхватит сама.
 export const SOUNDS = [
-  { key: 'meow', path: 'assets/sfx/meow.mp3' },
-  { key: 'win',  path: 'assets/sfx/win.mp3' },
-  { key: 'bark', path: 'assets/sfx/bark.mp3' },
-  { key: 'coin', path: 'assets/sfx/coin.mp3' },
+  { key: 'meow',      path: 'assets/sfx/meow.mp3' },
+  { key: 'win',       path: 'assets/sfx/win.mp3' },
+  { key: 'bark',      path: 'assets/sfx/bark.mp3' },
+  { key: 'coin',      path: 'assets/sfx/coin.mp3' },
+  { key: 'bone',      path: 'assets/sfx/bone.mp3' },
+  { key: 'shield',    path: 'assets/sfx/shield.mp3' },
+  { key: 'shieldPop', path: 'assets/sfx/shield_pop.mp3' },
 ];
 
 // Сюда попадают только реально существующие звуки — заполняется в main.js.
