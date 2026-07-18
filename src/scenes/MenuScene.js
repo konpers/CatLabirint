@@ -32,22 +32,31 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(1, 0);
 
-    // Сетка 2x2 — крупные карточки под детский палец
-    const cardW = Math.min(140, w * 0.4);
+    // Показываем только КУПЛЕННЫХ персонажей (изначально 4, растёт после покупок).
+    // Новых покупают в магазине — здесь только выбор из своих.
+    const owned = CATS.filter((c) => progress.isCatUnlocked(c.id));
+
+    // Колонок больше, когда персонажей много, чтобы уместить без прокрутки.
+    const cols = owned.length <= 4 ? 2 : owned.length <= 6 ? 3 : 4;
+    const rows = Math.ceil(owned.length / cols);
+    const gap = 10;
+    const cardW = Math.min(140, (w - 24) / cols - gap);
     const cardH = cardW * 1.15;
     const startY = h * 0.26;
 
     this.cards = [];
-    CATS.forEach((cat, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const x = w / 2 + (col === 0 ? -1 : 1) * (cardW / 2 + 8);
+    owned.forEach((cat, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const inRow = Math.min(cols, owned.length - row * cols);
+      const rowW = inRow * cardW + (inRow - 1) * gap;
+      const x = (w - rowW) / 2 + cardW / 2 + col * (cardW + gap);
       const y = startY + row * (cardH + 14) + cardH / 2;
       this.cards.push(this._makeCard(cat, x, y, cardW, cardH));
     });
 
-    this._makeShopButton(w / 2, h * 0.8);
-    this._makePlayButton(w / 2, h * 0.9);
+    this._makeShopButton(w / 2, h * 0.82);
+    this._makePlayButton(w / 2, h * 0.92);
     this._highlight();
   }
 

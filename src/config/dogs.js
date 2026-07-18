@@ -13,8 +13,15 @@
 export const DOG_RUN_FRAMES = 6;
 
 export const DOGS = [
+  // Бесплатные (доступны с начала)
   { id: 'beagle', name: 'Бигль',      price: 0 },
   { id: 'bull',   name: 'Бультерьер', price: 0 },
+  // Платные (покупаются в магазине). Картинки — dog_<id>_run_0..5 + dog_<id>_wait.
+  { id: 'bear_black', name: 'Охотник', price: 50 },
+  { id: 'bear_brown', name: 'Бурый',   price: 50 },
+  { id: 'bear_white', name: 'Глыба',   price: 50 },
+  { id: 'pitbull',    name: 'Тайсон',  price: 80 },
+  { id: 'shepherd',   name: 'Убийца',  price: 100 },
 ];
 
 export function getDog(id) {

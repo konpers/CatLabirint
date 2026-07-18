@@ -27,32 +27,48 @@ export class ShopScene extends Phaser.Scene {
     this._makeCoinBadge(w - 16, 16);
     this._backButton(16, 16);
 
-    // --- Секция котиков ---
+    // Карточек стало много (8 персонажей + 7 врагов) — раскладываем сеткой.
+    const cols = 4;
+    const size = Math.min(84, (w - 24) / cols - 10);
+
+    // --- Секция персонажей (котики + собака-игрок) ---
     this.add
-      .text(w / 2, h * 0.15, '🐱 Котики', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
+      .text(w / 2, h * 0.14, '🐾 Персонажи', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
       .setOrigin(0.5);
     this.catCards = [];
-    this._row(CATS, h * 0.19, (cat, x, y, size) => this._catCard(cat, x, y, size));
+    const catRows = this._grid(CATS, h * 0.17, cols, size, (cat, x, y, s) => this._catCard(cat, x, y, s));
 
-    // --- Секция собак ---
+    // --- Секция врагов ---
+    const dogY = h * 0.17 + catRows * (size * 1.25 + 12) + 30;
     this.add
-      .text(w / 2, h * 0.52, '🐶 Враги (кто гоняется)', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
+      .text(w / 2, dogY, '🐶 Враги (кто гоняется)', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
       .setOrigin(0.5);
     this.dogCards = [];
-    this._row(DOGS, h * 0.56, (dog, x, y, size) => this._dogCard(dog, x, y, size));
+    this._grid(DOGS, dogY + 22, cols, size, (dog, x, y, s) => this._dogCard(dog, x, y, s));
 
-    this._hint(w / 2, h * 0.9);
+    this._hint(w / 2, h * 0.96);
   }
 
-  /** Раскладывает элементы массива в ряд по центру, при тесноте — уменьшает. */
-  _row(items, y, makeCard) {
+  /**
+   * Раскладывает элементы сеткой по cols колонок, по центру.
+   * @returns {number} сколько рядов заняло (для позиционирования следующей секции)
+   */
+  _grid(items, top, cols, size, makeCard) {
     const { width: w } = this.scale;
-    const n = items.length;
-    const size = Math.min(96, (w - 24) / n - 10);
     const gap = 10;
-    const rowW = n * size + (n - 1) * gap;
-    const startX = (w - rowW) / 2 + size / 2;
-    items.forEach((it, i) => makeCard(it, startX + i * (size + gap), y + size / 2, size));
+    const cellH = size * 1.25 + 12;
+    const rows = Math.ceil(items.length / cols);
+    items.forEach((it, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      // последний ряд может быть неполным — центрируем его
+      const inRow = Math.min(cols, items.length - row * cols);
+      const rowW = inRow * size + (inRow - 1) * gap;
+      const startX = (w - rowW) / 2 + size / 2;
+      const cIn = i - row * cols;
+      makeCard(it, startX + cIn * (size + gap), top + row * cellH + size * 0.62, size);
+    });
+    return rows;
   }
 
   // --- Карточка котика: куплен → выбрать; закрыт → купить ---
