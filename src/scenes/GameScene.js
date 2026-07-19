@@ -8,7 +8,8 @@ import { Dog, pickSpawnTile, createDogAnims } from '../entities/Dog.js';
 import { randomEnemyBreed } from '../config/dogs.js';
 import {
   getLevel, TOTAL_LEVELS, TILE, DOG_APPROACH_BUDGET, dogSpeedFor, COINS_PER_LEVEL,
-  BONE_RADIUS_TILES, BONE_DISTRACT_MS, SHIELD_FREEZE_MS, SHIELD_MAP_CHANCE,
+  BONE_RADIUS_TILES, BONE_DISTRACT_MS, SHIELD_FREEZE_MS,
+  SHIELD_MAP_CHANCE, SHIELD_MAP_COUNT, BONE_MAP_CHANCE, BONE_MAP_COUNT,
   BOOST_DURATION_MS, TRAMPOLINE_COOLDOWN_MS,
 } from '../config/levels.js';
 import { PALETTE, FONT } from '../config/assets.js';
@@ -46,6 +47,7 @@ export class GameScene extends Phaser.Scene {
     this._placeObjects();
     this._placeCoins();
     this._placeShieldPickup();
+    this._placeBonePickup();
     this._placeTrampolines();
     this._setupCat();
     this._setupCamera();
@@ -261,39 +263,89 @@ export class GameScene extends Phaser.Scene {
     this.ui?.setCoins(progress.getCoins() + this.collected);
   }
 
-  // --- Щит: редкий пикап на карте -------------------------------------
+  // --- Пикапы способностей на карте -----------------------------------
 
-  // Спавнится только на уровнях, где вообще есть от чего защищаться, и
-  // с вероятностью SHIELD_MAP_CHANCE — иначе игрок находил бы его каждый раз
-  // и покупка в магазине потеряла бы смысл.
+  /**
+   * Множество занятых тайлов (старт, выход, коробки + всё, что уже разложили
+   * в переданных группах) — чтобы пикапы не садились друг на друга и на объекты.
+   */
+  _takenTiles(...groups) {
+    const set = new Set([
+      `${this.startTile.x},${this.startTile.y}`,
+      `${this.exitTile.x},${this.exitTile.y}`,
+      ...this.boxTiles.map((t) => `${t.x},${t.y}`),
+    ]);
+    for (const g of groups) {
+      for (const obj of g.getChildren()) {
+        const t = this.maze.worldToTile(obj.x, obj.y);
+        set.add(`${t.x},${t.y}`);
+      }
+    }
+    return set;
+  }
+
+  // Щит нужен только там, где есть собаки (на 1-2 защищать не от кого).
+  // Появляется не всегда (SHIELD_MAP_CHANCE), чтобы покупка в магазине не
+  // теряла смысл; когда появился — SHIELD_MAP_COUNT штук.
   _placeShieldPickup() {
     this.shieldGroup = this.physics.add.group();
     if (!this.cfg.dogs) return;
     if (Math.random() >= SHIELD_MAP_CHANCE) return;
 
-    const coinTiles = this.coinGroup.getChildren().map((c) => this.maze.worldToTile(c.x, c.y));
-    const taken = new Set([
-      `${this.startTile.x},${this.startTile.y}`,
-      `${this.exitTile.x},${this.exitTile.y}`,
-      ...this.boxTiles.map((t) => `${t.x},${t.y}`),
-      ...coinTiles.map((t) => `${t.x},${t.y}`),
-    ]);
+    const taken = this._takenTiles(this.coinGroup);
     const free = this.maze.floors.filter((t) => !taken.has(`${t.x},${t.y}`));
-    if (!free.length) return;
-    const t = free[Math.floor(Math.random() * free.length)];
-    const p = this.maze.tileToWorld(t.x, t.y);
-    const pickup = this.shieldGroup.create(p.x, p.y, 'shield').setDepth(p.y - 8);
-    pickup.setScale(TILE * 0.6 / pickup.width);
-    pickup.body.setCircle(pickup.width * 0.4, pickup.width * 0.1, pickup.width * 0.1);
-    this.tweens.add({
-      targets: pickup, y: p.y - 5, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-    });
+    const spots = spreadPick(free, SHIELD_MAP_COUNT, 3);
+    for (const t of spots) {
+      const p = this.maze.tileToWorld(t.x, t.y);
+      const pickup = this.shieldGroup.create(p.x, p.y, 'shield').setDepth(p.y - 8);
+      pickup.setScale(TILE * 0.6 / pickup.width);
+      pickup.body.setCircle(pickup.width * 0.4, pickup.width * 0.1, pickup.width * 0.1);
+      this.tweens.add({
+        targets: pickup, y: p.y - 5, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+    }
+  }
+
+  // Косточка банкуется в инвентарь и годится на будущее — поэтому падает на
+  // любом уровне (в отличие от щита), с шансом BONE_MAP_CHANCE, BONE_MAP_COUNT штук.
+  _placeBonePickup() {
+    this.boneGroup = this.physics.add.group();
+    if (Math.random() >= BONE_MAP_CHANCE) return;
+
+    const taken = this._takenTiles(this.coinGroup, this.shieldGroup);
+    const free = this.maze.floors.filter((t) => !taken.has(`${t.x},${t.y}`));
+    const spots = spreadPick(free, BONE_MAP_COUNT, 3);
+    for (const t of spots) {
+      const p = this.maze.tileToWorld(t.x, t.y);
+      const pickup = this.boneGroup.create(p.x, p.y, 'bone').setDepth(p.y - 8);
+      pickup.setScale(TILE * 0.55 / pickup.width);
+      pickup.body.setCircle(pickup.width * 0.4, pickup.width * 0.1, pickup.width * 0.1);
+      this.tweens.add({
+        targets: pickup, y: p.y - 5, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+    }
   }
 
   _collectShield(cat, pickup) {
     if (!pickup.active) return;
     pickup.destroy();
     if (!cat.hasShield) this._applyShield();
+  }
+
+  /** Подобрал косточку — заряд копится в инвентаре, кнопка способности загорается. */
+  _collectBone(cat, pickup) {
+    if (!pickup.active) return;
+    pickup.destroy();
+    progress.grantItemCharge('bone');
+    this.sfx('bone');
+    const pop = this.add
+      .text(pickup.x, pickup.y - 6, '+🦴', {
+        fontFamily: FONT, fontSize: '18px', color: '#C4563E', stroke: '#FFFFFF', strokeThickness: 4,
+      })
+      .setOrigin(0.5)
+      .setDepth(20000);
+    this.tweens.add({ targets: pop, y: pop.y - 26, alpha: 0, duration: 700, onComplete: () => pop.destroy() });
+    this.ui?.setBoneCount(progress.getItemCount('bone'));
   }
 
   /** Надевает ауру щита на котика — источник неважен (магазин про запас или пикап). */
@@ -333,15 +385,7 @@ export class GameScene extends Phaser.Scene {
     const n = this.cfg.trampolines || 0;
     if (!n) return;
 
-    const coinTiles = this.coinGroup.getChildren().map((c) => this.maze.worldToTile(c.x, c.y));
-    const shieldTiles = this.shieldGroup.getChildren().map((c) => this.maze.worldToTile(c.x, c.y));
-    const taken = new Set([
-      `${this.startTile.x},${this.startTile.y}`,
-      `${this.exitTile.x},${this.exitTile.y}`,
-      ...this.boxTiles.map((t) => `${t.x},${t.y}`),
-      ...coinTiles.map((t) => `${t.x},${t.y}`),
-      ...shieldTiles.map((t) => `${t.x},${t.y}`),
-    ]);
+    const taken = this._takenTiles(this.coinGroup, this.shieldGroup, this.boneGroup);
     const free = this.maze.floors.filter((t) => !taken.has(`${t.x},${t.y}`));
     const spots = spreadPick(free, n, 3); // подальше друг от друга — иначе один рывок ловит оба
 
@@ -412,6 +456,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.cat, this.exit, () => this._win(), null, this);
     this.physics.add.overlap(this.cat, this.coinGroup, this._collectCoin, null, this);
     this.physics.add.overlap(this.cat, this.shieldGroup, this._collectShield, null, this);
+    this.physics.add.overlap(this.cat, this.boneGroup, this._collectBone, null, this);
     this.physics.add.overlap(this.cat, this.trampolineGroup, this._onTrampoline, null, this);
 
     // Появление котика

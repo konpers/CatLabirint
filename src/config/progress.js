@@ -188,6 +188,13 @@ export function buyItemCharge(id, price) {
   return true;
 }
 
+/** Выдаёт заряд бесплатно — подбор способности на карте, не покупка в магазине. */
+export function grantItemCharge(id) {
+  const s = load();
+  s.items[id] = (s.items[id] || 0) + 1;
+  save();
+}
+
 /** Тратит один заряд способности. true — потрачен, false — зарядов не было. */
 export function useItemCharge(id) {
   const s = load();
