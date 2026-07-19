@@ -5,12 +5,18 @@
 //
 // Данные берутся из cats.js / dogs.js / abilities.js; что открыто/выбрано/
 // включено/сколько зарядов на руках — из progress.
+//
+// Контента больше, чем помещается на экран — вся сетка карточек скроллится
+// вертикально (драг пальцем/мышью + колесо мыши). Шапка (заголовок/монеты/
+// назад) зафиксирована и в скролл не попадает.
 
 import { CATS } from '../config/cats.js';
 import { DOGS } from '../config/dogs.js';
 import { ABILITIES } from '../config/abilities.js';
 import { PALETTE, FONT } from '../config/assets.js';
 import * as progress from '../config/progress.js';
+
+const DRAG_THRESHOLD = 10; // px сдвига пальца — меньше считаем тапом, не скроллом
 
 export class ShopScene extends Phaser.Scene {
   constructor() {
@@ -30,58 +36,67 @@ export class ShopScene extends Phaser.Scene {
     this._makeCoinBadge(w - 16, 16);
     this._backButton(16, 16);
 
-    // Карточек стало много (8 персонажей + 7 врагов) — раскладываем сеткой.
-    const cols = 4;
-    const size = Math.min(84, (w - 24) / cols - 10);
+    // Ниже шапки — скроллируемая зона со всеми карточками.
+    const headerH = h * 0.12;
+    this.scrollTop = headerH;
+    this.scrollBottom = h;
+    this.scrollY = 0;
+    this.dragDistance = 0;
+    this.scrollContent = this.add.container(0, headerH);
 
-    // --- Секция персонажей (котики + собака-игрок) ---
-    this.add
-      .text(w / 2, h * 0.14, '🐾 Персонажи', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
-      .setOrigin(0.5);
+    // Меньше колонок — крупнее карточки. Раньше size ограничивался ещё и
+    // высотой экрана, чтобы всё влезало без скролла — теперь скролл есть,
+    // ограничение только по ширине экрана.
+    const cols = 3;
+    const size = Math.min(104, (w - 24) / cols - 10);
+
     this.catCards = [];
-    const catRows = this._grid(CATS, h * 0.17, cols, size, (cat, x, y, s) => this._catCard(cat, x, y, s));
-
-    // --- Секция врагов ---
-    const dogY = h * 0.17 + catRows * (size * 1.25 + 12) + 30;
-    this.add
-      .text(w / 2, dogY, '🐶 Враги (кто гоняется)', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
-      .setOrigin(0.5);
     this.dogCards = [];
-    const dogRows = this._grid(DOGS, dogY + 22, cols, size, (dog, x, y, s) => this._dogCard(dog, x, y, s));
-
-    // --- Секция способностей ---
-    const abilityY = dogY + 22 + dogRows * (size * 1.25 + 12) + 30;
-    this.add
-      .text(w / 2, abilityY, '🎒 Способности', { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' })
-      .setOrigin(0.5);
     this.abilityCards = [];
-    const abilityRows = this._grid(
-      ABILITIES, abilityY + 22, cols, size, (ab, x, y, s) => this._abilityCard(ab, x, y, s)
-    );
 
-    this._hint(w / 2, abilityY + 22 + abilityRows * (size * 1.25 + 12) + 20);
+    let y = 20;
+    y = this._section('🐾 Персонажи', CATS, cols, size, (cat, x, yy, s) => this._catCard(cat, x, yy, s), y);
+    y = this._section('🐶 Враги (кто гоняется)', DOGS, cols, size, (dog, x, yy, s) => this._dogCard(dog, x, yy, s), y + 28);
+    y = this._section('🎒 Способности', ABILITIES, cols, size, (ab, x, yy, s) => this._abilityCard(ab, x, yy, s), y + 28);
+
+    const hint = this._hint(w / 2, y + 26);
+    this.contentHeight = hint.y + hint.height + 20;
+    this.maxScroll = Math.max(0, this.contentHeight - (this.scrollBottom - this.scrollTop));
+
+    this._setupScrollMask();
+    this._setupScrollbar();
+    this._setupScrollInput();
+  }
+
+  /** Заголовок секции + сетка карточек. Возвращает y нижнего края сетки. */
+  _section(title, items, cols, size, makeCard, y) {
+    const { width: w } = this.scale;
+    const label = this.add.text(w / 2, y, title, { fontFamily: FONT, fontSize: '20px', color: '#5B4A6F' }).setOrigin(0.5);
+    this.scrollContent.add(label);
+    return this._grid(items, y + 26, cols, size, makeCard);
   }
 
   /**
-   * Раскладывает элементы сеткой по cols колонок, по центру.
-   * @returns {number} сколько рядов заняло (для позиционирования следующей секции)
+   * Раскладывает элементы сеткой по cols колонок, по центру, добавляя каждую
+   * карточку в scrollContent.
+   * @returns {number} y нижнего края сетки (для позиционирования следующей секции)
    */
   _grid(items, top, cols, size, makeCard) {
     const { width: w } = this.scale;
-    const gap = 10;
-    const cellH = size * 1.25 + 12;
+    const gap = 14;
+    const cellH = size * 1.25 + 16;
     const rows = Math.ceil(items.length / cols);
     items.forEach((it, i) => {
-      const col = i % cols;
       const row = Math.floor(i / cols);
       // последний ряд может быть неполным — центрируем его
       const inRow = Math.min(cols, items.length - row * cols);
       const rowW = inRow * size + (inRow - 1) * gap;
       const startX = (w - rowW) / 2 + size / 2;
       const cIn = i - row * cols;
-      makeCard(it, startX + cIn * (size + gap), top + row * cellH + size * 0.62, size);
+      const card = makeCard(it, startX + cIn * (size + gap), top + row * cellH + size * 0.62, size);
+      this.scrollContent.add(card);
     });
-    return rows;
+    return top + rows * cellH;
   }
 
   // --- Карточка котика: куплен → выбрать; закрыт → купить ---
@@ -97,7 +112,7 @@ export class ShopScene extends Phaser.Scene {
     c.add([bg, sprite, label, lock]);
 
     bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerdown', () => this._onCatTap(cat));
+    bg.on('pointerup', () => { if (this.dragDistance < DRAG_THRESHOLD) this._onCatTap(cat); });
 
     const card = { kind: 'cat', item: cat, container: c, bg, sprite, label, lock };
     this.catCards.push(card);
@@ -150,7 +165,7 @@ export class ShopScene extends Phaser.Scene {
     c.add([bg, sprite, label, lock]);
 
     bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerdown', () => this._onDogTap(dog));
+    bg.on('pointerup', () => { if (this.dragDistance < DRAG_THRESHOLD) this._onDogTap(dog); });
 
     const card = { kind: 'dog', item: dog, container: c, bg, sprite, label, lock };
     this.dogCards.push(card);
@@ -210,7 +225,7 @@ export class ShopScene extends Phaser.Scene {
     c.add([bg, sprite, label, owned]);
 
     bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerdown', () => this._onAbilityTap(ability));
+    bg.on('pointerup', () => { if (this.dragDistance < DRAG_THRESHOLD) this._onAbilityTap(ability); });
 
     const card = { kind: 'ability', item: ability, container: c, bg, sprite, label, owned };
     this.abilityCards.push(card);
@@ -237,6 +252,54 @@ export class ShopScene extends Phaser.Scene {
     this.dogCards.forEach((c) => this._paintDog(c));
     this.abilityCards.forEach((c) => this._paintAbility(c));
     this.coinBadge.setText(`🪙 ${progress.getCoins()}`);
+  }
+
+  // --- Скролл: scrollContent зажат геометрической маской по высоте, драг/колесо двигают его y ---
+
+  _setupScrollMask() {
+    const { width: w } = this.scale;
+    // add:false — графика служит только источником формы для маски, в display list не попадает.
+    const shape = this.make.graphics({ x: 0, y: 0, add: false });
+    shape.fillStyle(0xffffff);
+    shape.fillRect(0, this.scrollTop, w, this.scrollBottom - this.scrollTop);
+    this.scrollContent.setMask(shape.createGeometryMask());
+    this._maskShape = shape;
+    this.events.once('shutdown', () => this._maskShape.destroy());
+  }
+
+  _setupScrollbar() {
+    if (this.maxScroll <= 0) return; // весь контент влез — полоса не нужна
+    const { width: w } = this.scale;
+    const trackH = this.scrollBottom - this.scrollTop;
+    const thumbH = Math.max(30, (trackH * trackH) / this.contentHeight);
+    this._scrollbarThumbH = thumbH;
+    this.add.rectangle(w - 6, this.scrollTop + trackH / 2, 4, trackH, 0x000000, 0.08).setOrigin(0.5);
+    this.scrollbarThumb = this.add.rectangle(w - 6, this.scrollTop + thumbH / 2, 4, thumbH, 0x5B4A6F, 0.5).setOrigin(0.5);
+  }
+
+  _setupScrollInput() {
+    this.input.on('pointerdown', (p) => {
+      this._dragStartY = p.y;
+      this._dragStartScroll = this.scrollY;
+      this.dragDistance = 0;
+    });
+    this.input.on('pointermove', (p) => {
+      if (!p.isDown) return;
+      const dy = p.y - this._dragStartY;
+      this.dragDistance = Math.max(this.dragDistance, Math.abs(dy));
+      this._setScroll(this._dragStartScroll - dy);
+    });
+    this.input.on('wheel', (_p, _over, _dx, dy) => this._setScroll(this.scrollY + dy * 0.5));
+  }
+
+  _setScroll(y) {
+    this.scrollY = Phaser.Math.Clamp(y, 0, this.maxScroll);
+    this.scrollContent.y = this.scrollTop - this.scrollY;
+    if (this.scrollbarThumb) {
+      const trackH = this.scrollBottom - this.scrollTop;
+      const ratio = this.maxScroll > 0 ? this.scrollY / this.maxScroll : 0;
+      this.scrollbarThumb.y = this.scrollTop + this._scrollbarThumbH / 2 + ratio * (trackH - this._scrollbarThumbH);
+    }
   }
 
   // --- Общие элементы ---
@@ -272,10 +335,12 @@ export class ShopScene extends Phaser.Scene {
   }
 
   _hint(x, y) {
-    this.add
+    const t = this.add
       .text(x, y, 'Монеты за прохождение и на карте.\nСкоро — новые зверята!', {
         fontFamily: FONT, fontSize: '14px', color: '#5B4A6F', align: 'center',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0);
+    this.scrollContent.add(t);
+    return t;
   }
 }

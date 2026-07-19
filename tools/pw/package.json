@@ -1,0 +1,12 @@
+{
+  "name": "cat-labirint-pw-tests",
+  "private": true,
+  "type": "module",
+  "description": "Headless Playwright для скриншотов/автотестов игры — не часть самой игры, только tools/",
+  "scripts": {
+    "shop": "node shop-test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}

@@ -1,6 +1,7 @@
 ﻿# Артефакты инструментов (генерируются по требованию)
 tools/_shots/
 tools/_preview_*.png
+tools/pw/node_modules/
 
 # Системное
 Thumbs.db
