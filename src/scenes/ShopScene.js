@@ -108,7 +108,8 @@ export class ShopScene extends Phaser.Scene {
     const sprite = this.add.image(0, -size * 0.12, `cat_${cat.id}_sit`);
     sprite.setScale(Math.min((size * 0.6) / sprite.width, (size * 0.6) / sprite.height));
     const label = this.add.text(0, size * 0.42, '', { fontFamily: FONT, fontSize: '13px', color: '#5B4A6F' }).setOrigin(0.5);
-    const lock = this.add.text(0, -size * 0.12, '🔒', { fontSize: `${size * 0.4}px` }).setOrigin(0.5).setVisible(false);
+    // Замок — маленький бейдж в углу, не должен закрывать персонажа под ним.
+    const lock = this.add.text(size * 0.38, -size * 0.5, '🔒', { fontSize: `${size * 0.22}px` }).setOrigin(0.5).setVisible(false);
     c.add([bg, sprite, label, lock]);
 
     bg.setInteractive({ useHandCursor: true });
@@ -161,7 +162,7 @@ export class ShopScene extends Phaser.Scene {
     const sprite = this.add.image(0, -size * 0.12, `dog_${dog.id}_run_0`);
     sprite.setScale(Math.min((size * 0.62) / sprite.width, (size * 0.62) / sprite.height));
     const label = this.add.text(0, size * 0.42, '', { fontFamily: FONT, fontSize: '13px', color: '#5B4A6F' }).setOrigin(0.5);
-    const lock = this.add.text(0, -size * 0.12, '🔒', { fontSize: `${size * 0.4}px` }).setOrigin(0.5).setVisible(false);
+    const lock = this.add.text(size * 0.38, -size * 0.5, '🔒', { fontSize: `${size * 0.22}px` }).setOrigin(0.5).setVisible(false);
     c.add([bg, sprite, label, lock]);
 
     bg.setInteractive({ useHandCursor: true });
