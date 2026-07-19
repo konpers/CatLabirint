@@ -1,4 +1,4 @@
-// Настройки 8 уровней. Крутить баланс — здесь.
+// Настройки 10 уровней. Крутить баланс — здесь.
 //
 // cols/rows   — размер сетки В ЯЧЕЙКАХ (реальная карта в тайлах: 2*n+1).
 //               Держим ≤19 ячеек (39 тайлов): BFS и камера проверены до 35×35.
@@ -13,6 +13,8 @@
 // safeZones   — сколько коробок-укрытий разбросано по карте
 // spawnDelay  — через сколько мс после старта появляется первая собака
 // respawnGap  — пауза между исчезновением собаки и появлением следующей
+// trampolines — сколько батутов разбросано по карте (даёт временный буст скорости,
+//               не расходуется — можно прыгать сколько угодно раз, см. GameScene)
 
 export const DOG_LIFETIME = 15000; // 15 сек ПОГОНИ — из ГДД
 export const IDLE_TIMEOUT = 20000; // 20 сек простоя до idle-анимации — из ГДД
@@ -51,46 +53,61 @@ export const SHIELD_FREEZE_MS = 4000;
 // на уровнях 1-2 щит защищать не от кого).
 export const SHIELD_MAP_CHANCE = 0.35;
 
+// --- Батут ---
+export const BOOST_MULTIPLIER = 1.6;       // множитель скорости котика на батуте
+export const BOOST_DURATION_MS = 2000;     // как долго действует ускорение
+export const TRAMPOLINE_COOLDOWN_MS = 500; // защита от спама, пока котик стоит на батуте
+
 export const LEVELS = [
   {
-    n: 1, cols: 7, rows: 7, braid: 0.30, dogs: 0, coins: 3, safeZones: 4,
+    n: 1, cols: 7, rows: 7, braid: 0.30, dogs: 0, coins: 3, safeZones: 4, trampolines: 1,
     spawnDelay: 0, respawnGap: 0,
     hint: 'Веди котика к домику! Собирай монетки.',
   },
   {
-    n: 2, cols: 9, rows: 9, braid: 0.18, dogs: 0, coins: 5, safeZones: 5,
+    n: 2, cols: 9, rows: 9, braid: 0.18, dogs: 0, coins: 5, safeZones: 5, trampolines: 1,
     spawnDelay: 0, respawnGap: 0,
     hint: 'Лабиринт стал больше. Не заблудись!',
   },
   {
-    n: 3, cols: 11, rows: 11, braid: 0.20, dogs: 1, dogSpeed: 0.70, coins: 6, safeZones: 6,
+    n: 3, cols: 11, rows: 11, braid: 0.20, dogs: 1, dogSpeed: 0.70, coins: 6, safeZones: 6, trampolines: 2,
     spawnDelay: 5000, respawnGap: 4000,
-    hint: 'Осторожно, собака! Прячься в коробку.',
+    hint: 'Осторожно, собака! Прячься в коробку. Батут разгонит тебя!',
   },
   {
-    n: 4, cols: 13, rows: 13, braid: 0.22, dogs: 1, dogSpeed: 0.75, coins: 8, safeZones: 6,
+    n: 4, cols: 13, rows: 13, braid: 0.22, dogs: 1, dogSpeed: 0.75, coins: 8, safeZones: 6, trampolines: 2,
     spawnDelay: 4500, respawnGap: 3500,
     hint: 'Собака стала шустрее!',
   },
   {
-    n: 5, cols: 15, rows: 15, braid: 0.25, dogs: 2, dogSpeed: 0.80, coins: 10, safeZones: 7,
+    n: 5, cols: 15, rows: 15, braid: 0.25, dogs: 2, dogSpeed: 0.80, coins: 10, safeZones: 7, trampolines: 2,
     spawnDelay: 4000, respawnGap: 3000,
     hint: 'Теперь их двое!',
   },
   {
-    n: 6, cols: 17, rows: 17, braid: 0.27, dogs: 2, dogSpeed: 0.85, coins: 8, safeZones: 7,
+    n: 6, cols: 17, rows: 17, braid: 0.27, dogs: 2, dogSpeed: 0.85, coins: 8, safeZones: 7, trampolines: 3,
     spawnDelay: 3500, respawnGap: 3000,
     hint: 'Две собаки, и лабиринт больше.',
   },
   {
-    n: 7, cols: 19, rows: 19, braid: 0.30, dogs: 3, dogSpeed: 0.90, coins: 6, safeZones: 8,
+    n: 7, cols: 19, rows: 19, braid: 0.30, dogs: 3, dogSpeed: 0.90, coins: 6, safeZones: 8, trampolines: 3,
     spawnDelay: 3000, respawnGap: 2500,
     hint: 'Три собаки! Держись укрытий.',
   },
   {
-    n: 8, cols: 19, rows: 19, braid: 0.32, dogs: 3, dogSpeed: 0.95, coins: 5, safeZones: 8,
+    n: 8, cols: 19, rows: 19, braid: 0.32, dogs: 3, dogSpeed: 0.95, coins: 5, safeZones: 8, trampolines: 3,
     spawnDelay: 2500, respawnGap: 2200,
-    hint: 'Финал! Самые быстрые собаки. Удачи!',
+    hint: 'Самые быстрые собаки. Держись!',
+  },
+  {
+    n: 9, cols: 19, rows: 19, braid: 0.33, dogs: 3, dogSpeed: 0.97, coins: 5, safeZones: 7, trampolines: 3,
+    spawnDelay: 2200, respawnGap: 2000,
+    hint: 'Батут закинет тебя далеко — используй его, чтобы оторваться!',
+  },
+  {
+    n: 10, cols: 19, rows: 19, braid: 0.35, dogs: 3, dogSpeed: 0.98, coins: 5, safeZones: 7, trampolines: 3,
+    spawnDelay: 2000, respawnGap: 1800,
+    hint: 'Финал! Собаки почти не отстают — держись батутов.',
   },
 ];
 

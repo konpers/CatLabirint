@@ -3,7 +3,7 @@
 // ВАЖНО: поменял любой файл — подними версию в CACHE_NAME. Иначе у игрока
 // останется старая версия из кеша, и он будет уверять, что твоя правка не работает.
 
-const CACHE_NAME = 'cat-maze-v9';
+const CACHE_NAME = 'cat-maze-v11';
 
 const ASSETS = [
   './',
@@ -36,9 +36,13 @@ const ASSETS = [
   './assets/sprites/coin.svg',
   './assets/sprites/bone.svg',
   './assets/sprites/shield.svg',
+  './assets/sprites/trampoline.svg',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/sfx/meow.mp3',
+  './assets/sfx/coin.mp3',
+  './assets/sfx/bark.mp3',
+  './assets/sfx/win.mp3',
 ];
 
 // Котики: 4 окраски x 3 позы. Собаки: 2 породы x (6 кадров бега + поза ожидания).

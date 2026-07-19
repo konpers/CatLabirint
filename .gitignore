@@ -3,6 +3,9 @@ tools/_shots/
 tools/_preview_*.png
 tools/pw/node_modules/
 
+# Исходные дропы звуков — рабочие копии лежат в assets/sfx/ под нужными именами
+sounds/
+
 # Системное
 Thumbs.db
 .DS_Store

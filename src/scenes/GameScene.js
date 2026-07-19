@@ -9,6 +9,7 @@ import { randomEnemyBreed } from '../config/dogs.js';
 import {
   getLevel, TOTAL_LEVELS, TILE, DOG_APPROACH_BUDGET, dogSpeedFor, COINS_PER_LEVEL,
   BONE_RADIUS_TILES, BONE_DISTRACT_MS, SHIELD_FREEZE_MS, SHIELD_MAP_CHANCE,
+  BOOST_DURATION_MS, TRAMPOLINE_COOLDOWN_MS,
 } from '../config/levels.js';
 import { PALETTE, FONT } from '../config/assets.js';
 import * as progress from '../config/progress.js';
@@ -45,6 +46,7 @@ export class GameScene extends Phaser.Scene {
     this._placeObjects();
     this._placeCoins();
     this._placeShieldPickup();
+    this._placeTrampolines();
     this._setupCat();
     this._setupCamera();
     this._setupDogs();
@@ -324,6 +326,53 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.flash(120, 126, 200, 242); // мягкая вспышка щита, не тревожная
   }
 
+  // --- Батут: элемент карты, не расходник -------------------------------
+
+  _placeTrampolines() {
+    this.trampolineGroup = this.physics.add.group();
+    const n = this.cfg.trampolines || 0;
+    if (!n) return;
+
+    const coinTiles = this.coinGroup.getChildren().map((c) => this.maze.worldToTile(c.x, c.y));
+    const shieldTiles = this.shieldGroup.getChildren().map((c) => this.maze.worldToTile(c.x, c.y));
+    const taken = new Set([
+      `${this.startTile.x},${this.startTile.y}`,
+      `${this.exitTile.x},${this.exitTile.y}`,
+      ...this.boxTiles.map((t) => `${t.x},${t.y}`),
+      ...coinTiles.map((t) => `${t.x},${t.y}`),
+      ...shieldTiles.map((t) => `${t.x},${t.y}`),
+    ]);
+    const free = this.maze.floors.filter((t) => !taken.has(`${t.x},${t.y}`));
+    const spots = spreadPick(free, n, 3); // подальше друг от друга — иначе один рывок ловит оба
+
+    for (const t of spots) {
+      const p = this.maze.tileToWorld(t.x, t.y);
+      const trampoline = this.trampolineGroup.create(p.x, p.y, 'trampoline').setDepth(p.y - 8);
+      trampoline.setScale(TILE * 0.75 / trampoline.width);
+      trampoline.body.setCircle(trampoline.width * 0.4, trampoline.width * 0.1, trampoline.width * 0.1);
+      trampoline.readyAt = 0; // готов сразу
+    }
+  }
+
+  /**
+   * Батут не исчезает (в отличие от монет/щита) — элемент карты, а не расходник.
+   * readyAt — кулдаун на самом объекте: без него стояние на батуте продлевало бы
+   * boostUntil каждый физический тик, и буст держался бы вечно.
+   */
+  _onTrampoline(cat, trampoline) {
+    if (this.time.now < trampoline.readyAt) return;
+    trampoline.readyAt = this.time.now + TRAMPOLINE_COOLDOWN_MS;
+    cat.boostUntil = this.time.now + BOOST_DURATION_MS;
+    this.sfx('boing');
+    // Squash/stretch — на самом батуте, не на котике: Cat.update() каждый кадр
+    // бега безусловно сбрасывает scale на baseScale+wobble, твин на котике
+    // был бы не виден (см. CLAUDE.md).
+    this.tweens.add({
+      targets: trampoline, scaleY: trampoline.scale * 0.65, scaleX: trampoline.scale * 1.15,
+      duration: 110, yoyo: true, ease: 'Quad.easeOut',
+    });
+  }
+
   // --- Косточка: активная способность отвлечения -----------------------
 
   /** Вызывается из UIScene по тапу на кнопку способности. */
@@ -363,6 +412,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.cat, this.exit, () => this._win(), null, this);
     this.physics.add.overlap(this.cat, this.coinGroup, this._collectCoin, null, this);
     this.physics.add.overlap(this.cat, this.shieldGroup, this._collectShield, null, this);
+    this.physics.add.overlap(this.cat, this.trampolineGroup, this._onTrampoline, null, this);
 
     // Появление котика
     this.cat.setScale(0);
@@ -460,6 +510,7 @@ export class GameScene extends Phaser.Scene {
     const dog = new Dog(this, p.x, p.y, this.maze, dogSpeedFor(this.cfg), breed);
     this.dogs.add(dog);
     this.physics.add.collider(dog, this.walls);
+    this.sfx('bark'); // звук появления собаки
   }
 
   _onDogTouch(cat, dog) {
@@ -469,6 +520,9 @@ export class GameScene extends Phaser.Scene {
     // ПОСЛЕ того, как щит уже лопнул, и без этой проверки тут же засчитывалась
     // бы вторая, нелегитимная поимка тем же прыжком.
     if (dog.frozenUntil > this.time.now) return;
+    // На батуте котик «в прыжке» — пока действует буст, он перепрыгивает собаку
+    // без урона. Тот же таймстамп, что задаёт ускорение (см. _onTrampoline).
+    if (cat.boostUntil > this.time.now) return;
     if (cat.isSafe) return; // в коробке собака не страшна — это вся суть укрытия
     if (cat.hasShield) { this._popShield(dog); return; } // щит прощает одну поимку
     this._lose();
@@ -544,6 +598,12 @@ export class GameScene extends Phaser.Scene {
     // Аура щита ходит вместе с котиком — Cat не контейнер, поэтому позиция
     // подтягивается вручную, а не через parent/child.
     if (this.cat.hasShield && this.shieldAura) this.shieldAura.setPosition(this.cat.x, this.cat.y);
+
+    // Пока действует буст батута — котик светится золотом: это и знак скорости,
+    // и подсказка, что сейчас он перепрыгивает собак без урона (см. _onDogTouch).
+    // Тинт ставим каждый кадр (Cat.update его не трогает, в отличие от scale).
+    if (this.cat.boostUntil > time) this.cat.setTint(0xFFE38A);
+    else this.cat.clearTint();
 
     for (const dog of this.dogs.getChildren()) dog.update(this.cat, time);
 

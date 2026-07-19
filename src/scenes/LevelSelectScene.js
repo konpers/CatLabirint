@@ -25,13 +25,14 @@ export class LevelSelectScene extends Phaser.Scene {
 
     const maxLevel = progress.getMaxLevel();
 
-    // Сетка узлов: 2 колонки × 4 ряда для 8 уровней
+    // Сетка узлов: 2 колонки, ряды считаются от LEVELS.length (сейчас 10 = 5 рядов).
+    // Числа подобраны так, чтобы 5-й ряд не наезжал на кнопку "Магазин" внизу (h*0.93).
     const cols = 2;
-    const cell = Math.min(120, w * 0.36);
-    const gap = 18;
+    const cell = Math.min(104, w * 0.30);
+    const gap = 14;
     const gridW = cols * cell + (cols - 1) * gap;
     const startX = (w - gridW) / 2 + cell / 2;
-    const startY = h * 0.2;
+    const startY = h * 0.17;
 
     LEVELS.forEach((lvl, i) => {
       const col = i % cols;

@@ -33,6 +33,7 @@ export const IMAGES = [
   { key: 'coin',   path: 'assets/sprites/coin.svg' },   // монетка на карте
   { key: 'bone',   path: 'assets/sprites/bone.svg' },   // способность "косточка"
   { key: 'shield', path: 'assets/sprites/shield.svg' }, // способность "щит"
+  { key: 'trampoline', path: 'assets/sprites/trampoline.svg' }, // батут на карте
 ];
 
 // Звуки. Файлов пока нет — просто положи их в assets/sfx/, игра подхватит сама.
@@ -44,6 +45,7 @@ export const SOUNDS = [
   { key: 'bone',      path: 'assets/sfx/bone.mp3' },
   { key: 'shield',    path: 'assets/sfx/shield.mp3' },
   { key: 'shieldPop', path: 'assets/sfx/shield_pop.mp3' },
+  { key: 'boing',     path: 'assets/sfx/boing.mp3' },
 ];
 
 // Сюда попадают только реально существующие звуки — заполняется в main.js.

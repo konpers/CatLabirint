@@ -1,6 +1,6 @@
 // Котик: движение по джойстику + система idle-анимаций.
 
-import { SPEED, IDLE_TIMEOUT, CAT_SIZE } from '../config/levels.js';
+import { SPEED, IDLE_TIMEOUT, CAT_SIZE, BOOST_MULTIPLIER } from '../config/levels.js';
 
 export class Cat extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, skinId) {
@@ -11,6 +11,7 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
     this.skinId = skinId;
     this.isSafe = false;      // в коробке ли — от этого зависит, ловит ли собака
     this.hasShield = false;   // под щитом ли — одна поимка прощается (см. GameScene)
+    this.boostUntil = 0;      // до какого времени действует буст батута (см. GameScene._onTrampoline)
     this.idleTimer = 0;
     this.idleBusy = false;    // проигрывается ли сейчас idle-анимация
 
@@ -39,7 +40,10 @@ export class Cat extends Phaser.Physics.Arcade.Sprite {
       this.idleTimer = 0;
 
       // Бег — единственная скорость котика (кнопку-переключатель убрали).
-      this.setVelocity(input.x * SPEED.catRun * input.force, input.y * SPEED.catRun * input.force);
+      // Батут временно поднимает её множителем — таймстамп, как у dog.frozenUntil.
+      const boosted = this.scene.time.now < this.boostUntil;
+      const speed = SPEED.catRun * (boosted ? BOOST_MULTIPLIER : 1);
+      this.setVelocity(input.x * speed * input.force, input.y * speed * input.force);
 
       // разворот мордочкой по ходу движения (на картинке котик смотрит вправо)
       if (input.x < -0.1) this.setFlipX(true);
